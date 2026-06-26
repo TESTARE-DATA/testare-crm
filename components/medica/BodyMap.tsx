@@ -47,8 +47,8 @@ const BACK_C: C[] = [
   { label: "Mano sx", x: 80, y: 1606 }, { label: "Mano dx", x: 520, y: 1606 },
   { label: "Zona lombare", x: 300, y: 1500 },
   { label: "Anca sx", x: 218, y: 1560 }, { label: "Anca dx", x: 382, y: 1560 },
-  { label: "Gluteo sx", x: 266, y: 1610 }, { label: "Gluteo dx", x: 334, y: 1610 },
-  { label: "Coscia post. sx", x: 264, y: 1755 }, { label: "Coscia post. dx", x: 336, y: 1755 },
+  { label: "Gluteo sx", x: 266, y: 1585 }, { label: "Gluteo dx", x: 334, y: 1585 },
+  { label: "Coscia post. sx", x: 264, y: 1745 }, { label: "Coscia post. dx", x: 336, y: 1745 },
   { label: "Ginocchio sx", x: 263, y: 1875 }, { label: "Ginocchio dx", x: 337, y: 1875 },
   { label: "Polpaccio sx", x: 262, y: 1950 }, { label: "Polpaccio dx", x: 338, y: 1950 },
   { label: "Caviglia sx", x: 260, y: 2022 }, { label: "Caviglia dx", x: 340, y: 2022 },
@@ -97,9 +97,14 @@ export function BodyMap({ value, onSelect }: { value: BodySel | null; onSelect: 
         )}
       </svg>
 
-      <div className="mt-2 min-h-[20px] text-center text-[13px]">
-        {value ? (
-          <span className="font-semibold">Zona: <span className="brand-text">{value.label}</span></span>
+      <div className="mt-2 min-h-[20px] w-full max-w-[230px] text-center text-[13px]">
+        {value && value.view === view ? (
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-[11px] text-muted-2">Punto segnato · distretto (correggi se serve):</span>
+            <select className="inp w-full text-center text-[13px] font-semibold" value={value.label} onChange={(e) => onSelect({ ...value, label: e.target.value })}>
+              {centers.map((c) => <option key={c.label} value={c.label}>{c.label}</option>)}
+            </select>
+          </div>
         ) : (
           <span className="text-muted-2">Tocca il punto esatto sull&apos;omino</span>
         )}
