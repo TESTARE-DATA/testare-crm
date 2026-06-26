@@ -45,14 +45,14 @@ const BACK_C: C[] = [
   { label: "Avambraccio sx", x: 124, y: 1536 }, { label: "Avambraccio dx", x: 476, y: 1536 },
   { label: "Polso sx", x: 104, y: 1576 }, { label: "Polso dx", x: 496, y: 1576 },
   { label: "Mano sx", x: 80, y: 1606 }, { label: "Mano dx", x: 520, y: 1606 },
-  { label: "Zona lombare", x: 300, y: 1508 },
-  { label: "Anca sx", x: 250, y: 1592 }, { label: "Anca dx", x: 350, y: 1592 },
-  { label: "Gluteo sx", x: 272, y: 1635 }, { label: "Gluteo dx", x: 328, y: 1635 },
-  { label: "Coscia post. sx", x: 266, y: 1790 }, { label: "Coscia post. dx", x: 334, y: 1790 },
-  { label: "Ginocchio sx", x: 266, y: 1878 }, { label: "Ginocchio dx", x: 334, y: 1878 },
-  { label: "Polpaccio sx", x: 268, y: 1956 }, { label: "Polpaccio dx", x: 332, y: 1956 },
-  { label: "Caviglia sx", x: 268, y: 2014 }, { label: "Caviglia dx", x: 332, y: 2014 },
-  { label: "Piede sx", x: 268, y: 2056 }, { label: "Piede dx", x: 332, y: 2056 },
+  { label: "Zona lombare", x: 300, y: 1500 },
+  { label: "Anca sx", x: 218, y: 1560 }, { label: "Anca dx", x: 382, y: 1560 },
+  { label: "Gluteo sx", x: 266, y: 1610 }, { label: "Gluteo dx", x: 334, y: 1610 },
+  { label: "Coscia post. sx", x: 264, y: 1755 }, { label: "Coscia post. dx", x: 336, y: 1755 },
+  { label: "Ginocchio sx", x: 263, y: 1875 }, { label: "Ginocchio dx", x: 337, y: 1875 },
+  { label: "Polpaccio sx", x: 262, y: 1950 }, { label: "Polpaccio dx", x: 338, y: 1950 },
+  { label: "Caviglia sx", x: 260, y: 2022 }, { label: "Caviglia dx", x: 340, y: 2022 },
+  { label: "Piede sx", x: 260, y: 2062 }, { label: "Piede dx", x: 340, y: 2062 },
 ];
 
 export type BodySel = { label: string; view: "fronte" | "retro"; x: number; y: number };
