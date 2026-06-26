@@ -3,112 +3,70 @@
 import { useState } from "react";
 
 // ============================================================================
-// Omino: immagine line-art (public/omino.jpg, 597x2095, fronte sopra / retro
-// sotto) dentro un SVG, con i POLIGONI dei distretti sopra ogni segmento. Il
-// browser fa l'hit-test esatto della forma → localizzazione precisa al pixel,
-// a qualsiasi dimensione. Lato dx/sx dal punto di vista del giocatore.
+// Omino "segna-punto": l'utente clicca un PUNTO esatto sull'immagine line-art
+// (public/omino.jpg, 597x2095, fronte sopra / retro sotto). Il punto coincide
+// sempre col clic. Il DISTRETTO viene derivato in automatico (centro più
+// vicino) come etichetta per la cartella; il dettaglio fine va nelle note.
+// Lato dx/sx dal punto di vista del giocatore (di fronte sx=nostra destra,
+// di schiena invertito) — già incluso nelle etichette dei centri.
 // ============================================================================
 
 const IMG_W = 597, IMG_H = 2095;
 const FRONT_VB = `0 0 ${IMG_W} 1047`;
 const BACK_VB = `0 1047 ${IMG_W} 1048`;
-const DEBUG = false; // metti true per vedere i poligoni (calibrazione)
 
-type Region = { label: string; points: string };
+type C = { label: string; x: number; y: number };
 
-const FRONT: Region[] = [
-  { label: "Testa", points: "260,55 338,55 352,140 332,195 266,195 246,140" },
-  { label: "Collo", points: "272,195 326,195 334,238 264,238" },
-  { label: "Spalla dx", points: "150,235 236,252 232,322 150,320" },
-  { label: "Spalla sx", points: "362,252 448,235 448,320 366,322" },
-  { label: "Torace / pettorali", points: "236,252 362,252 368,360 300,392 230,360" },
-  { label: "Braccio dx", points: "118,308 200,330 196,470 108,460" },
-  { label: "Braccio sx", points: "398,330 480,308 490,460 402,470" },
-  { label: "Avambraccio dx", points: "92,458 172,470 150,612 72,600" },
-  { label: "Avambraccio sx", points: "426,470 506,458 526,600 448,612" },
-  { label: "Mano dx", points: "55,600 150,612 140,706 42,694" },
-  { label: "Mano sx", points: "448,612 543,600 556,694 458,706" },
-  { label: "Addome / core", points: "236,360 362,360 360,560 238,560" },
-  { label: "Inguine / pube", points: "256,558 342,558 322,652 276,652" },
-  { label: "Coscia ant. dx", points: "204,576 298,600 298,812 214,812" },
-  { label: "Coscia ant. sx", points: "300,600 394,576 384,812 300,812" },
-  { label: "Ginocchio dx", points: "214,812 298,812 296,878 218,878" },
-  { label: "Ginocchio sx", points: "300,812 384,812 380,878 304,878" },
-  { label: "Gamba / tibia dx", points: "222,878 296,878 286,978 228,978" },
-  { label: "Gamba / tibia sx", points: "304,878 378,878 372,978 296,978" },
-  { label: "Piede dx", points: "216,978 292,978 288,1018 208,1012" },
-  { label: "Piede sx", points: "308,978 384,978 392,1012 312,1018" },
+const FRONT_C: C[] = [
+  { label: "Testa", x: 300, y: 120 }, { label: "Collo", x: 300, y: 216 },
+  { label: "Spalla dx", x: 192, y: 285 }, { label: "Spalla sx", x: 406, y: 285 },
+  { label: "Torace / pettorali", x: 300, y: 320 },
+  { label: "Braccio dx", x: 155, y: 390 }, { label: "Braccio sx", x: 443, y: 390 },
+  { label: "Avambraccio dx", x: 122, y: 535 }, { label: "Avambraccio sx", x: 476, y: 535 },
+  { label: "Mano dx", x: 97, y: 655 }, { label: "Mano sx", x: 500, y: 655 },
+  { label: "Addome / core", x: 300, y: 460 }, { label: "Inguine / pube", x: 300, y: 605 },
+  { label: "Coscia ant. dx", x: 256, y: 700 }, { label: "Coscia ant. sx", x: 344, y: 700 },
+  { label: "Ginocchio dx", x: 256, y: 845 }, { label: "Ginocchio sx", x: 344, y: 845 },
+  { label: "Gamba / tibia dx", x: 258, y: 928 }, { label: "Gamba / tibia sx", x: 342, y: 928 },
+  { label: "Piede dx", x: 252, y: 998 }, { label: "Piede sx", x: 348, y: 998 },
 ];
 
-const BACK: Region[] = [
-  { label: "Nuca / cervicale", points: "262,1095 336,1095 350,1180 328,1238 270,1238 248,1180" },
-  { label: "Collo (cervicale)", points: "272,1238 326,1238 334,1282 264,1282" },
-  { label: "Spalla sx", points: "150,1292 236,1304 232,1374 150,1372" },
-  { label: "Spalla dx", points: "362,1304 448,1292 448,1372 366,1374" },
-  { label: "Schiena alta / dorsale", points: "236,1304 362,1304 358,1448 240,1448" },
-  { label: "Braccio sx", points: "118,1362 200,1384 196,1524 108,1514" },
-  { label: "Braccio dx", points: "398,1384 480,1362 490,1514 402,1524" },
-  { label: "Avambraccio sx", points: "92,1512 172,1524 150,1666 72,1654" },
-  { label: "Avambraccio dx", points: "426,1524 506,1512 526,1654 448,1666" },
-  { label: "Mano sx", points: "55,1654 150,1666 140,1760 42,1748" },
-  { label: "Mano dx", points: "448,1666 543,1654 556,1748 458,1760" },
-  { label: "Zona lombare", points: "244,1448 354,1448 350,1568 248,1568" },
-  { label: "Gluteo sx", points: "246,1568 300,1568 306,1690 248,1700" },
-  { label: "Gluteo dx", points: "300,1568 354,1568 352,1700 294,1690" },
-  { label: "Coscia post. sx", points: "230,1690 298,1700 296,1888 240,1888" },
-  { label: "Coscia post. dx", points: "302,1700 372,1690 362,1888 304,1888" },
-  { label: "Polpaccio sx", points: "240,1900 296,1900 286,2012 248,2012" },
-  { label: "Polpaccio dx", points: "304,1900 360,1900 352,2012 314,2012" },
-  { label: "Caviglia / piede sx", points: "246,2012 292,2012 288,2062 240,2056" },
-  { label: "Caviglia / piede dx", points: "308,2012 354,2012 360,2056 314,2062" },
+const BACK_C: C[] = [
+  { label: "Nuca / cervicale", x: 300, y: 1166 }, { label: "Collo (cervicale)", x: 300, y: 1260 },
+  { label: "Spalla sx", x: 192, y: 1333 }, { label: "Spalla dx", x: 406, y: 1333 },
+  { label: "Schiena alta / dorsale", x: 300, y: 1376 },
+  { label: "Braccio sx", x: 155, y: 1443 }, { label: "Braccio dx", x: 443, y: 1443 },
+  { label: "Avambraccio sx", x: 122, y: 1589 }, { label: "Avambraccio dx", x: 476, y: 1589 },
+  { label: "Mano sx", x: 97, y: 1707 }, { label: "Mano dx", x: 500, y: 1707 },
+  { label: "Zona lombare", x: 300, y: 1508 },
+  { label: "Gluteo sx", x: 270, y: 1630 }, { label: "Gluteo dx", x: 330, y: 1630 },
+  { label: "Coscia post. sx", x: 266, y: 1790 }, { label: "Coscia post. dx", x: 334, y: 1790 },
+  { label: "Polpaccio sx", x: 268, y: 1956 }, { label: "Polpaccio dx", x: 332, y: 1956 },
+  { label: "Caviglia / piede sx", x: 268, y: 2035 }, { label: "Caviglia / piede dx", x: 332, y: 2035 },
 ];
 
-type Parsed = { label: string; pts: [number, number][] };
-const parse = (regs: Region[]): Parsed[] => regs.map((r) => ({ label: r.label, pts: r.points.split(" ").map((p) => p.split(",").map(Number) as [number, number]) }));
-const FRONT_P = parse(FRONT), BACK_P = parse(BACK);
+export type BodySel = { label: string; view: "fronte" | "retro"; x: number; y: number };
 
-function inPoly(x: number, y: number, pts: [number, number][]): boolean {
-  let inside = false;
-  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-    const [xi, yi] = pts[i], [xj, yj] = pts[j];
-    if (((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi)) inside = !inside;
-  }
-  return inside;
-}
-const centroid = (pts: [number, number][]): [number, number] => {
-  const n = pts.length;
-  return [pts.reduce((s, p) => s + p[0], 0) / n, pts.reduce((s, p) => s + p[1], 0) / n];
-};
-
-export function BodyMap({ value, onSelect }: { value: string | null; onSelect: (label: string) => void }) {
+export function BodyMap({ value, onSelect }: { value: BodySel | null; onSelect: (s: BodySel) => void }) {
   const [view, setView] = useState<"fronte" | "retro">("fronte");
-  const [hover, setHover] = useState<string | null>(null);
-  const regions = view === "fronte" ? FRONT : BACK;
-  const parsed = view === "fronte" ? FRONT_P : BACK_P;
+  const centers = view === "fronte" ? FRONT_C : BACK_C;
 
-  // distretto sotto al punto: prima chi lo CONTIENE, altrimenti il centro più vicino
-  const pick = (e: React.MouseEvent<SVGSVGElement>): string => {
+  const onSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const svg = e.currentTarget;
     const sp = svg.createSVGPoint(); sp.x = e.clientX; sp.y = e.clientY;
     const p = sp.matrixTransform(svg.getScreenCTM()!.inverse());
-    for (const r of parsed) if (inPoly(p.x, p.y, r.pts)) return r.label;
-    let best = parsed[0].label, bd = Infinity;
-    for (const r of parsed) { const [cx, cy] = centroid(r.pts); const d = (p.x - cx) ** 2 + (p.y - cy) ** 2; if (d < bd) { bd = d; best = r.label; } }
-    return best;
+    let best = centers[0].label, bd = Infinity;
+    for (const c of centers) { const d = (p.x - c.x) ** 2 + (p.y - c.y) ** 2; if (d < bd) { bd = d; best = c.label; } }
+    onSelect({ label: best, view, x: Math.round(p.x), y: Math.round(p.y) });
   };
+
+  const pin = value && value.view === view ? value : null;
 
   return (
     <div className="flex flex-col items-center">
-      <style>{`
-        .reg { fill: transparent; stroke: transparent; stroke-width: 2.5; transition: fill .1s; }
-        ${DEBUG ? ".reg { fill: color-mix(in srgb, var(--brand-primary) 12%, transparent); stroke: color-mix(in srgb, var(--brand-primary) 35%, transparent); }" : ""}
-        .reg.hov { fill: color-mix(in srgb, var(--brand-primary) 28%, transparent); stroke: color-mix(in srgb, var(--brand-primary) 60%, transparent); }
-        .reg.sel { fill: color-mix(in srgb, var(--brand-primary) 48%, transparent); stroke: var(--brand-primary); }
-      `}</style>
-
       <div className="mb-3 flex rounded-xl border border-border bg-surface p-0.5">
         {(["fronte", "retro"] as const).map((v) => (
-          <button key={v} type="button" onClick={() => { setView(v); setHover(null); }} className={`rounded-lg px-4 py-1 text-[12px] font-semibold capitalize transition-colors ${view === v ? "brand-bg brand-on" : "text-muted hover:text-foreground"}`}>
+          <button key={v} type="button" onClick={() => setView(v)} className={`rounded-lg px-4 py-1 text-[12px] font-semibold capitalize transition-colors ${view === v ? "brand-bg brand-on" : "text-muted hover:text-foreground"}`}>
             {v}
           </button>
         ))}
@@ -119,26 +77,21 @@ export function BodyMap({ value, onSelect }: { value: string | null; onSelect: (
         <span className="px-2 text-[10px] font-extrabold tracking-[0.14em] text-muted-2 opacity-70">{view === "fronte" ? "SX" : "DX"}</span>
       </div>
 
-      <svg
-        viewBox={view === "fronte" ? FRONT_VB : BACK_VB}
-        className="h-[360px] w-auto cursor-pointer select-none"
-        onMouseMove={(e) => setHover(pick(e))}
-        onMouseLeave={() => setHover(null)}
-        onClick={(e) => onSelect(pick(e))}
-      >
+      <svg viewBox={view === "fronte" ? FRONT_VB : BACK_VB} className="h-[360px] w-auto cursor-crosshair select-none" onClick={onSvgClick}>
         <image href="/omino.jpg" x={0} y={0} width={IMG_W} height={IMG_H} />
-        {regions.map((r) => (
-          <polygon key={r.label} className={`reg ${value === r.label ? "sel" : hover === r.label ? "hov" : ""}`} points={r.points} style={{ pointerEvents: "none" }} />
-        ))}
+        {pin && (
+          <g style={{ pointerEvents: "none" }}>
+            <circle cx={pin.x} cy={pin.y} r={26} fill="color-mix(in srgb, var(--brand-primary) 22%, transparent)" />
+            <circle cx={pin.x} cy={pin.y} r={12} fill="var(--brand-primary)" stroke="#fff" strokeWidth={4} />
+          </g>
+        )}
       </svg>
 
       <div className="mt-2 min-h-[20px] text-center text-[13px]">
-        {hover && hover !== value ? (
-          <span className="text-muted">→ <span className="font-semibold text-foreground">{hover}</span></span>
-        ) : value ? (
-          <span className="font-semibold">Zona: <span className="brand-text">{value}</span></span>
+        {value ? (
+          <span className="font-semibold">Zona: <span className="brand-text">{value.label}</span></span>
         ) : (
-          <span className="text-muted-2">Tocca una zona sull&apos;omino</span>
+          <span className="text-muted-2">Tocca il punto esatto sull&apos;omino</span>
         )}
       </div>
     </div>

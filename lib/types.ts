@@ -284,6 +284,8 @@ export interface MedicalRecord {
   doctor?: string;
   /** Referti allegati (PDF) — nome + data-URL + data estratta dal file. */
   attachments?: { name: string; url: string; date?: string }[];
+  /** Punto esatto segnato sull'omino (coordinate immagine), per la mappa anatomica. */
+  bodyPoint?: { view: "fronte" | "retro"; x: number; y: number };
 }
 
 // ---- Area Medica: presa in carico / riabilitazione --------------------------

@@ -5,7 +5,7 @@ import type { Athlete } from "@/lib/types";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { Modal, ModalHeader } from "@/components/Modal";
-import { BodyMap } from "@/components/medica/BodyMap";
+import { BodyMap, type BodySel } from "@/components/medica/BodyMap";
 import type { MedicalDraft } from "@/components/medica/SendToMedicalModal";
 
 // ============================================================================
@@ -34,7 +34,7 @@ export function SegnalazioneModal({
 }) {
   const [mode, setMode] = useState<"locale" | "sistemico">("locale");
   const [sintomo, setSintomo] = useState<string | null>(null);
-  const [zona, setZona] = useState<string | null>(null);
+  const [zona, setZona] = useState<BodySel | null>(null);
   const [condizione, setCondizione] = useState<string | null>(null);
   const [dettaglio, setDettaglio] = useState("");
 
@@ -50,10 +50,11 @@ export function SegnalazioneModal({
         athleteId: athlete.id,
         type: isLocale ? "infortunio" : "malattia",
         injury: motivo,
-        bodyPart: isLocale ? zona! : "Sistemico",
+        bodyPart: isLocale ? zona!.label : "Sistemico",
         date: todayISO(),
         phase: "acuta",
         treatment: "Da valutare",
+        ...(isLocale && zona ? { bodyPoint: { view: zona.view, x: zona.x, y: zona.y } } : {}),
       },
     });
     onClose();
@@ -113,7 +114,7 @@ export function SegnalazioneModal({
         <div className="flex items-center justify-between gap-2 border-t border-border px-6 py-4">
           <div className="text-[12px] text-muted">
             {canSubmit ? (
-              <span><span className="font-semibold text-foreground">{mode === "locale" ? sintomo : condizione}</span> · {mode === "locale" ? zona : "sistemico"}</span>
+              <span><span className="font-semibold text-foreground">{mode === "locale" ? sintomo : condizione}</span> · {mode === "locale" ? zona?.label : "sistemico"}</span>
             ) : (
               <span className="text-muted-2">{mode === "locale" ? "Scegli sintomo e zona per inviare" : "Scegli una condizione per inviare"}</span>
             )}
