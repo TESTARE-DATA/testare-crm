@@ -1,26 +1,333 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   TESTÀRE CRM — Design system "premium" (linguaggio del Season Report)
+   Estetica Apple: pulita, ariosa, profondità soft, glass, micro-interazioni.
+   Le variabili --brand-* si sovrascrivono entrando nel cliente (BrandScope).
+   ========================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafbfc;
+  --background-2: #f0f2f5;
+  --surface: #ffffff;
+  --surface-2: #f8f9fa;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --muted-2: #94a3b8;
+  --border: rgba(15, 23, 42, 0.07);
+  --border-strong: rgba(15, 23, 42, 0.12);
+
+  /* TESTÀRE */
+  --testare-ink: #0b0b0c;
+  --testare-accent: #e94f35;
+
+  /* Brand attivo (default = TESTÀRE) */
+  --brand-primary: #0b0b0c;
+  --brand-primary-dark: #000000;
+  --brand-accent: #e94f35;
+  --brand-on-primary: #ffffff;
+  --brand-soft: rgba(233, 79, 53, 0.08);
+
+  /* Performance tiers (metodologia report) */
+  --elite: #0891b2;
+  --good: #16a34a;
+  --warn: #d97706;
+  --bad: #dc2626;
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.03);
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.05), 0 12px 40px rgba(15, 23, 42, 0.03);
+  --shadow-lg: 0 8px 32px rgba(15, 23, 42, 0.10), 0 2px 8px rgba(15, 23, 42, 0.05);
+  --glass: rgba(255, 255, 255, 0.72);
+
+  /* Area Medica — accento clinico (teal) */
+  --med: #0e7490;
+  --med-soft: rgba(14, 116, 144, 0.09);
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-muted-2: var(--muted-2);
+  --color-border: var(--border);
+  --color-brand: var(--brand-primary);
+  --color-brand-dark: var(--brand-primary-dark);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-soft: var(--brand-soft);
+  --color-elite: var(--elite);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --font-sans: var(--font-inter);
+  --radius: 16px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.011em;
+}
+
+/* Sfondo ambientale soft */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 700px 700px at 8% 0%, rgba(233, 79, 53, 0.035) 0%, transparent 70%),
+    radial-gradient(ellipse 600px 600px at 100% 100%, rgba(8, 145, 178, 0.035) 0%, transparent 70%);
+}
+
+h1, h2, h3 { letter-spacing: -0.022em; }
+
+/* Brand utils */
+.brand-bg { background-color: var(--brand-primary); }
+.brand-bg-dark { background-color: var(--brand-primary-dark); }
+.brand-text { color: var(--brand-primary); }
+.brand-accent-text { color: var(--brand-accent); }
+.brand-soft-bg { background-color: var(--brand-soft); }
+.brand-border { border-color: var(--brand-primary); }
+.brand-on { color: var(--brand-on-primary); }
+.brand-ring:focus { box-shadow: 0 0 0 3px var(--brand-soft); }
+
+/* Card */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.card-hover { transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1); }
+.card-hover:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+
+/* Vetro (top bar) */
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Linea accent animata */
+@keyframes gradShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.grad-line {
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--brand-primary), var(--brand-accent), var(--elite), var(--brand-primary));
+  background-size: 300% 100%;
+  animation: gradShift 5s ease infinite;
+}
+
+/* Input */
+.inp {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  border-radius: 11px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.inp:focus { border-color: var(--brand-primary); box-shadow: 0 0 0 3px var(--brand-soft); }
+
+/* Input compatto (prescrizione) */
+.pinp {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 0.3rem 0.25rem;
+  font-size: 0.8rem;
+  text-align: center;
+  outline: none;
+}
+.pinp:focus { border-color: var(--brand-primary); box-shadow: 0 0 0 2px var(--brand-soft); }
+
+/* Entrata soft */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.fade-up { animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Range slider brandizzato */
+input[type="range"] { accent-color: var(--brand-primary); }
+
+/* ==========================================================================
+   Premium layer — branding più marcato, profondità, micro-interazioni.
+   ========================================================================== */
+
+/* Entrata a cascata: i figli compaiono in sequenza */
+.stagger > * { animation: fadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+
+/* Dot "live" pulsante */
+@keyframes pulseDot {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 55%, transparent); }
+  70% { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.dot-live { animation: pulseDot 2.2s ease-out infinite; }
+
+/* Card brandizzata: dentro .brand-cards i bordi prendono il colore societario */
+.brand-cards .card {
+  border-color: color-mix(in srgb, var(--brand-primary) 22%, transparent);
+}
+.brand-cards .card.card-hover:hover {
+  border-color: color-mix(in srgb, var(--brand-primary) 42%, transparent);
+  box-shadow: 0 10px 36px color-mix(in srgb, var(--brand-primary) 16%, transparent),
+              0 2px 8px rgba(15, 23, 42, 0.05);
+}
+
+/* Striscia accent in cima alla card (colore societario).
+   overflow:hidden fa sì che la striscia venga ritagliata dagli angoli
+   arrotondati della card, seguendone la curvatura. */
+.brand-topline { position: relative; overflow: hidden; }
+.brand-topline::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--brand-primary), var(--brand-accent));
+}
+
+/* Sheen: riflesso che attraversa la card al passaggio del mouse */
+.sheen { position: relative; overflow: hidden; }
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.45) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.sheen:hover::after { transform: translateX(120%); }
+
+/* Hero "mesh": gradiente ambientale premium */
+.hero-mesh {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(900px 420px at 88% -20%, color-mix(in srgb, var(--brand-primary) 16%, transparent), transparent 70%),
+    radial-gradient(700px 360px at 0% 120%, color-mix(in srgb, var(--brand-accent) 13%, transparent), transparent 70%),
+    var(--surface);
+}
+
+/* Tile glass per le metriche dell'hero */
+.tile {
+  background: var(--glass);
+  -webkit-backdrop-filter: saturate(160%) blur(8px);
+  backdrop-filter: saturate(160%) blur(8px);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.22s;
+}
+.tile:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+
+/* Cifre tabulari: i numeri dei dati non "ballano" mentre si animano */
+.tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+/* Hover-lift universale per i riquadri interni (tile dati) */
+.lift { transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.22s; will-change: transform; }
+.lift:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); border-color: var(--border-strong); }
+
+/* Spotlight: bordo che si illumina del colore societario verso il cursore */
+.spotlight { position: relative; }
+.spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(180px 180px at var(--mx, 50%) var(--my, 0%), color-mix(in srgb, var(--brand-primary) 55%, transparent), transparent 60%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+}
+.spotlight:hover::before { opacity: 1; }
+
+/* Linea grafico che si "disegna" all'ingresso (pathLength normalizzato a 1) */
+@keyframes drawLine { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.draw-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: drawLine 1.15s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards; }
+
+/* Area sotto la linea che sfuma in ingresso */
+@keyframes areaIn { from { opacity: 0; } to { opacity: 1; } }
+.area-in { animation: areaIn 0.9s ease 0.35s both; }
+
+/* Barre che crescono dal basso */
+@keyframes growUp { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.grow-up { transform-origin: bottom; animation: growUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Barre che crescono da sinistra */
+@keyframes growRight { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.grow-right { transform-origin: left; animation: growRight 0.85s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Reveal allo scroll (attivato via IntersectionObserver: .is-in) */
+.reveal { opacity: 0; transform: translateY(16px); transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+.reveal.is-in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .draw-line, .area-in, .grow-up, .grow-right { animation: none !important; }
+  .draw-line { stroke-dashoffset: 0; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* ==========================================================================
+   Area Medica — tono clinico/scientifico (accento teal, texture, ECG)
+   ========================================================================== */
+.med-grid {
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.med-accent { color: var(--med); }
+.med-accent-bg { background-color: var(--med); }
+.med-soft-bg { background-color: var(--med-soft); }
+.med-topline { position: relative; overflow: hidden; }
+.med-topline::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--med), color-mix(in srgb, var(--med) 35%, transparent));
+}
+/* Linea ECG che scorre nell'header clinico */
+@keyframes ecgDash { from { stroke-dashoffset: 240; } to { stroke-dashoffset: 0; } }
+.ecg-line { stroke-dasharray: 240; animation: ecgDash 3.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .ecg-line { animation: none; } }
+
+/* Logo societario in filigrana dietro le pagine cliente */
+.brand-watermark {
+  position: fixed;
+  right: -4%;
+  bottom: -6%;
+  width: min(46vw, 620px);
+  z-index: 0;
+  opacity: 0.07;
+  pointer-events: none;
+  filter: saturate(0.85);
+  -webkit-user-select: none;
+  user-select: none;
 }
