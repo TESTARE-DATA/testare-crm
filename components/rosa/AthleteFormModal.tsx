@@ -106,7 +106,7 @@ export function AthleteFormModal({
           </Field>
           <Field label="Stato">
             <select className="inp" value={form.status} onChange={(e) => set("status", e.target.value as Athlete["status"])}>
-              <option>disponibile</option><option>infortunato</option><option>in recupero</option><option>a riposo</option>
+              <option>disponibile</option><option>infortunato</option><option>in valutazione</option><option>in recupero</option><option>a riposo</option>
             </select>
           </Field>
           <Field label="Altezza (cm)"><input type="number" className="inp" value={form.heightCm} onChange={(e) => set("heightCm", +e.target.value)} /></Field>

@@ -109,8 +109,8 @@ export function AthleteHeader({
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const tone = status === "disponibile" ? "green" : status === "infortunato" ? "red" : status === "in recupero" ? "amber" : "default";
-  return <Badge tone={tone as "green" | "red" | "amber" | "default"}>{status}</Badge>;
+  const tone = status === "disponibile" ? "green" : status === "infortunato" ? "red" : status === "in valutazione" ? "blue" : status === "in recupero" ? "amber" : "default";
+  return <Badge tone={tone as "green" | "red" | "amber" | "blue" | "default"}>{status}</Badge>;
 }
 function age(b: string) {
   return Math.floor((Date.parse("2026-06-22") - Date.parse(b)) / (365.25 * 86400000));

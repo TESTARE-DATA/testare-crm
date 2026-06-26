@@ -13,14 +13,16 @@ import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { Modal, ModalHeader } from "@/components/Modal";
 import { AthleteFormModal, type AthleteFormValues } from "@/components/rosa/AthleteFormModal";
-import { SendToMedicalModal, type MedicalDraft } from "@/components/medica/SendToMedicalModal";
+import { type MedicalDraft } from "@/components/medica/SendToMedicalModal";
+import { SegnalazioneModal } from "@/components/medica/SegnalazioneModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Badge } from "@/components/ui";
 
 const ROLES: PlayerRole[] = ["Portiere", "Difensore", "Centrocampista", "Attaccante"];
-const STATUS_TONE: Record<string, "green" | "red" | "amber" | "default"> = {
+const STATUS_TONE: Record<string, "green" | "red" | "amber" | "blue" | "default"> = {
   disponibile: "green",
   infortunato: "red",
+  "in valutazione": "blue",
   "in recupero": "amber",
   "a riposo": "default",
 };
@@ -164,7 +166,7 @@ export function RosaClient({ clientId, seed, readiness }: { clientId: string; se
 
       {open && <AthleteFormModal defaultNumber={all.length + 1} onClose={() => setOpen(false)} onSave={addAthlete} />}
       {editing && <AthleteFormModal initial={editing} onClose={() => setEditing(null)} onSave={(v) => saveEdit(editing, v)} />}
-      {medicalFor && <SendToMedicalModal athlete={medicalFor} photoUrl={photos[medicalFor.id]} onClose={() => setMedicalFor(null)} onSubmit={(draft) => sendToMedical(medicalFor, draft)} />}
+      {medicalFor && <SegnalazioneModal athlete={medicalFor} photoUrl={photos[medicalFor.id]} onClose={() => setMedicalFor(null)} onSubmit={(draft) => sendToMedical(medicalFor, draft)} />}
       {bulk && <BulkPhotoModal athletes={all} onClose={() => setBulk(false)} onApply={(map) => Object.entries(map).forEach(([id, url]) => setPhoto(id, url))} />}
       {confirmDel && (
         <ConfirmDialog

@@ -31,10 +31,10 @@ const TYPES: MedicalType[] = ["infortunio", "sovraccarico", "malattia", "control
 
 const fmt = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("it-IT", { day: "numeric", month: "short" }) : "—");
 /** Bordo per stato: rosso = infortunato/fermo, arancione = in recupero, verde = disponibile, grigio = a riposo. */
-const STATUS_BORDER: Record<string, string> = { infortunato: "var(--bad)", "in recupero": "var(--warn)", "a riposo": "var(--muted-2)", disponibile: "var(--good)" };
+const STATUS_BORDER: Record<string, string> = { infortunato: "var(--bad)", "in valutazione": "#2563eb", "in recupero": "var(--warn)", "a riposo": "var(--muted-2)", disponibile: "var(--good)" };
 const borderFor = (status: string) => STATUS_BORDER[status] ?? "var(--good)";
-const statusLabel = (status: string) => (status === "in recupero" ? "In recupero" : status === "infortunato" ? "Fermo" : status === "a riposo" ? "A riposo" : "Disponibile");
-const STATUS_ORDER: Record<string, number> = { infortunato: 0, "in recupero": 1, "a riposo": 2, disponibile: 3 };
+const statusLabel = (status: string) => (status === "in valutazione" ? "In valutazione" : status === "in recupero" ? "In recupero" : status === "infortunato" ? "Fermo" : status === "a riposo" ? "A riposo" : "Disponibile");
+const STATUS_ORDER: Record<string, number> = { infortunato: 0, "in valutazione": 1, "in recupero": 2, "a riposo": 3, disponibile: 4 };
 
 export function AreaMedicaClient({ clientId, seed, athletes: seedAthletes, readiness }: { clientId: string; seed: MedicalRecord[]; athletes: Athlete[]; readiness: Record<string, number> }) {
   const { athletes } = useRoster(clientId, seedAthletes);
@@ -74,7 +74,7 @@ export function AreaMedicaClient({ clientId, seed, athletes: seedAthletes, readi
     .sort((x, y) => (STATUS_ORDER[x.athlete.status] ?? 3) - (STATUS_ORDER[y.athlete.status] ?? 3) || x.athlete.shirtNumber - y.athlete.shirtNumber);
 
   const inCare = roster.filter((x) => x.athlete.status === "infortunato" || x.athlete.status === "in recupero" || x.record);
-  const fermi = inCare.filter((x) => x.athlete.status === "infortunato" || (x.record && x.athlete.status !== "in recupero")).length;
+  const fermi = inCare.filter((x) => x.athlete.status === "infortunato" || (x.record && x.athlete.status !== "in recupero" && x.athlete.status !== "in valutazione")).length;
   const recupero = inCare.filter((x) => x.athlete.status === "in recupero").length;
   const rientri = inCare.filter((x) => x.record?.expectedReturn).length;
 

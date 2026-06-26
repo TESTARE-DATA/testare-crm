@@ -40,7 +40,7 @@ export interface StaffMember {
 }
 
 // ---- Atleta -----------------------------------------------------------------
-export type AthleteStatus = "disponibile" | "infortunato" | "in recupero" | "a riposo";
+export type AthleteStatus = "disponibile" | "infortunato" | "in valutazione" | "in recupero" | "a riposo";
 export type PlayerRole = "Portiere" | "Difensore" | "Centrocampista" | "Attaccante";
 export type Foot = "Destro" | "Sinistro" | "Ambidestro";
 
