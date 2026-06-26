@@ -293,10 +293,22 @@ export interface MedicalRecord {
 export interface MedicalIntake {
   id: string; // = id del MedicalRecord
   clientId: string;
+  // --- Inquadramento ---
+  dataInfortunio?: string; // ISO
+  meccanismo?: string;
+  gravita?: InjurySeverity;
+  // --- Valutazione ---
   anamnesi?: string;
+  esameObiettivo?: string;
+  esamiStrumentali?: string;
   diagnosi?: string;
-  prognosi?: string;
-  prescrizione?: string;
+  // --- Prognosi ---
+  prognosiGiorni?: number; // stop stimato
+  prognosi?: string; // criteri di rientro / note prognostiche
+  // --- Piano ---
+  prescrizione?: string; // piano terapeutico
+  obiettivi?: string; // obiettivi riabilitativi
+  cautele?: string; // indicazioni e cautele
   /** Membro dello staff a cui è affidato l'atleta. */
   assignedTo?: string;
   assignedRole?: string;

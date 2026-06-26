@@ -23,8 +23,8 @@ export default async function AreaMedicaHub({ params }: { params: Promise<{ clie
 
   const cards = [
     { slug: "area-medica/overview", icon: "users", title: "Overview", desc: "Tutta la rosa con stato clinico, bordi colorati e readiness.", stat: `${inCura} in cura` },
-    { slug: "area-medica/presa-in-carico", icon: "clipboard", title: "Presa in carico", desc: "Anamnesi, diagnosi, prognosi, prescrizione e affidamento allo staff.", stat: `${active.length} casi` },
-    { slug: "area-medica/diario", icon: "pulse", title: "Diario fisioterapico", desc: "Registro delle sedute di fisioterapia e riabilitazione, con autore e area.", stat: "Sedute" },
+    { slug: "area-medica/presa-in-carico", icon: "clipboard", title: "Presa in carico", desc: "Scheda clinica completa: valutazione, prognosi, piano e affidamento.", stat: `${active.length} casi` },
+    { slug: "area-medica/diario", icon: "pulse", title: "Diario riabilitativo", desc: "Scheda del medico + sedute di riabilitazione, con autore e area.", stat: "Sedute" },
     { slug: "area-medica/esercizi-trattamenti", icon: "dumbbell", title: "Esercizi e trattamenti", desc: "Libreria riabilitativa evidence-based con dosaggio e intensità.", stat: `${items.length} voci` },
     { slug: "area-medica/template", icon: "layers", title: "Template", desc: "Protocolli per fase con durata, frequenza, volume e criteri di uscita.", stat: `${templates.length} protocolli` },
   ];

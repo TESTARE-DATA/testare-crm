@@ -60,7 +60,7 @@ export const NAV: NavItem[] = [
     children: [
       { slug: "area-medica/overview", label: "Overview", icon: "users", description: "Tutti gli atleti con stato clinico" },
       { slug: "area-medica/presa-in-carico", label: "Presa in carico", icon: "clipboard", description: "Anamnesi, diagnosi, prognosi e prescrizione" },
-      { slug: "area-medica/diario", label: "Diario fisioterapico", icon: "pulse", description: "Sedute di fisioterapia e riabilitazione" },
+      { slug: "area-medica/diario", label: "Diario riabilitativo", icon: "pulse", description: "Scheda del medico, sedute e riabilitazione" },
       { slug: "area-medica/storico", label: "Storico infortuni", icon: "calendar", description: "Archivio stagionale degli infortuni conclusi" },
       { slug: "area-medica/esercizi-trattamenti", label: "Esercizi e trattamenti", icon: "dumbbell", description: "Libreria riabilitativa" },
       { slug: "area-medica/template", label: "Template", icon: "layers", description: "Protocolli riabilitativi" },

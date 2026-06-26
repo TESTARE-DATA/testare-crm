@@ -15,6 +15,7 @@ import { Modal, ModalHeader } from "@/components/Modal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { StatCard } from "@/components/ui";
 import { MedHeader } from "@/components/medica/MedHeader";
+import { IntakeScheda } from "@/components/medica/IntakeScheda";
 
 const fmt = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const fmtShort = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("it-IT", { day: "numeric", month: "short", timeZone: "UTC" });
@@ -95,6 +96,13 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
           </div>
         </div>
 
+        {selected.intake && (
+          <div className="card mb-5 p-5">
+            <div className="mb-3 flex items-center gap-1.5 text-sm font-semibold"><Icon name="clipboard" size={16} className="med-accent" /> Scheda del medico</div>
+            <IntakeScheda intake={selected.intake} record={m} />
+          </div>
+        )}
+
         <div className="card overflow-hidden">
           <div className="border-b border-border px-4 py-3 text-sm font-semibold">Trattamenti svolti</div>
           {selected.entries.length === 0 ? (
@@ -128,7 +136,7 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
   // ----- Prima schermata: atleti in terapia -----
   return (
     <div className="mx-auto max-w-[1100px] fade-up">
-      <MedHeader section="Riabilitazione" title="Diario fisioterapico" subtitle="Atleti presi in carico e in riabilitazione" icon="pulse" />
+      <MedHeader section="Riabilitazione" title="Diario riabilitativo" subtitle="Atleti presi in carico e in riabilitazione · scheda del medico + sedute" icon="pulse" />
 
       <div className="mb-6 grid grid-cols-3 gap-4">
         <StatCard label="Atleti in terapia" value={inTherapy.length} tone="brand" icon="pulse" />
@@ -178,7 +186,7 @@ function exportPdf(a: Athlete, m: MedicalRecord, intake: MedicalIntake | undefin
   .meta{display:flex;gap:24px;font-size:13px;margin-bottom:16px} .meta b{display:block;color:#64748b;font-size:11px;text-transform:uppercase}
   table{width:100%;border-collapse:collapse;font-size:13px} th,td{border-bottom:1px solid #e2e8f0;padding:8px;text-align:left}
   th{font-size:11px;text-transform:uppercase;color:#64748b} .head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:10px;margin-bottom:14px}</style></head>
-  <body><div class="head"><div><h1>Diario fisioterapico</h1><div class="sub">${a.firstName} ${a.lastName} · ${a.role} #${a.shirtNumber}</div></div><div style="font-weight:800;letter-spacing:2px">TESTÀRE</div></div>
+  <body><div class="head"><div><h1>Diario riabilitativo</h1><div class="sub">${a.firstName} ${a.lastName} · ${a.role} #${a.shirtNumber}</div></div><div style="font-weight:800;letter-spacing:2px">TESTÀRE</div></div>
   <div class="meta"><div><b>Diagnosi</b>${m.injury} · ${m.bodyPart}</div><div><b>Affidato a</b>${intake?.assignedTo ?? "—"}</div><div><b>Sedute</b>${entries.length}</div></div>
   <table><thead><tr><th>Data</th><th>Trattamento</th><th>Area</th><th>Dolore</th><th>Durata</th><th>Operatore</th></tr></thead><tbody>${rows || '<tr><td colspan="6">Nessuna seduta</td></tr>'}</tbody></table>
   </body></html>`;
