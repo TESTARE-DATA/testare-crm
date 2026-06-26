@@ -3,31 +3,73 @@
 import { useState } from "react";
 
 // ============================================================================
-// Omino per selezionare il distretto anatomico. Silhouette grigia "piena" e
-// segmentata (stile scheda medica), vista fronte/retro, regioni cliccabili.
-// Lato destro/sinistro dal punto di vista del GIOCATORE (la sua destra è alla
-// nostra sinistra). Restituisce l'etichetta del distretto via onSelect.
+// Omino per selezionare il distretto anatomico, basato sull'immagine
+// public/omini.png (fronte a sinistra, retro a destra). Sopra la figura ci sono
+// hotspot cliccabili invisibili, uno per distretto. Lato dx/sx dal punto di
+// vista del GIOCATORE: di fronte la sua destra è alla nostra sinistra; di
+// schiena la sua destra è alla nostra destra. Restituisce l'etichetta via onSelect.
 // ============================================================================
+
+type Spot = { label: string; x: number; y: number; w: number; h: number }; // % del riquadro
+
+// FRONTE — viewer-sinistra = giocatore "dx"
+const FRONT: Spot[] = [
+  { label: "Testa", x: 41, y: 13, w: 18, h: 10 },
+  { label: "Collo", x: 45, y: 22, w: 10, h: 4 },
+  { label: "Spalla dx", x: 27, y: 25, w: 14, h: 8 },
+  { label: "Spalla sx", x: 59, y: 25, w: 14, h: 8 },
+  { label: "Torace / pettorali", x: 37, y: 27, w: 26, h: 12 },
+  { label: "Braccio dx", x: 20, y: 31, w: 13, h: 19 },
+  { label: "Braccio sx", x: 67, y: 31, w: 13, h: 19 },
+  { label: "Mano dx", x: 11, y: 51, w: 13, h: 8 },
+  { label: "Mano sx", x: 76, y: 51, w: 13, h: 8 },
+  { label: "Addome / core", x: 40, y: 39, w: 20, h: 11 },
+  { label: "Inguine / pube", x: 44, y: 50, w: 12, h: 5 },
+  { label: "Coscia ant. dx", x: 38, y: 55, w: 12, h: 14 },
+  { label: "Coscia ant. sx", x: 50, y: 55, w: 12, h: 14 },
+  { label: "Ginocchio dx", x: 39, y: 69, w: 11, h: 6 },
+  { label: "Ginocchio sx", x: 50, y: 69, w: 11, h: 6 },
+  { label: "Tibia / stinco dx", x: 40, y: 75, w: 10, h: 12 },
+  { label: "Tibia / stinco sx", x: 50, y: 75, w: 10, h: 12 },
+  { label: "Caviglia / piede dx", x: 38, y: 87, w: 12, h: 8 },
+  { label: "Caviglia / piede sx", x: 50, y: 87, w: 12, h: 8 },
+];
+
+// RETRO — viewer-sinistra = giocatore "sx", viewer-destra = "dx"
+const BACK: Spot[] = [
+  { label: "Nuca / cervicale", x: 41, y: 13, w: 18, h: 10 },
+  { label: "Collo (cervicale)", x: 45, y: 22, w: 10, h: 4 },
+  { label: "Spalla sx", x: 27, y: 25, w: 14, h: 8 },
+  { label: "Spalla dx", x: 59, y: 25, w: 14, h: 8 },
+  { label: "Schiena alta / dorsale", x: 37, y: 27, w: 26, h: 11 },
+  { label: "Braccio sx", x: 20, y: 31, w: 13, h: 19 },
+  { label: "Braccio dx", x: 67, y: 31, w: 13, h: 19 },
+  { label: "Mano sx", x: 11, y: 51, w: 13, h: 8 },
+  { label: "Mano dx", x: 76, y: 51, w: 13, h: 8 },
+  { label: "Zona lombare", x: 40, y: 39, w: 20, h: 9 },
+  { label: "Gluteo sx", x: 38, y: 48, w: 12, h: 8 },
+  { label: "Gluteo dx", x: 50, y: 48, w: 12, h: 8 },
+  { label: "Coscia post. sx", x: 38, y: 57, w: 12, h: 12 },
+  { label: "Coscia post. dx", x: 50, y: 57, w: 12, h: 12 },
+  { label: "Cavo popliteo sx", x: 39, y: 70, w: 11, h: 5 },
+  { label: "Cavo popliteo dx", x: 50, y: 70, w: 11, h: 5 },
+  { label: "Polpaccio sx", x: 40, y: 75, w: 10, h: 12 },
+  { label: "Polpaccio dx", x: 50, y: 75, w: 10, h: 12 },
+  { label: "Tendine d'Achille sx", x: 41, y: 87, w: 9, h: 8 },
+  { label: "Tendine d'Achille dx", x: 50, y: 87, w: 9, h: 8 },
+];
 
 export function BodyMap({ value, onSelect }: { value: string | null; onSelect: (label: string) => void }) {
   const [view, setView] = useState<"fronte" | "retro">("fronte");
-
-  // Il fill è ereditato dalle shape figlie (che non hanno un fill proprio),
-  // così hover/selezione si applicano via CSS.
-  const Zone = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <g className={`bz ${value === label ? "is-sel" : ""}`} onClick={() => onSelect(label)} role="button" aria-label={label}>
-      {children}
-      <title>{label}</title>
-    </g>
-  );
+  const spots = view === "fronte" ? FRONT : BACK;
 
   return (
     <div className="flex flex-col items-center">
       <style>{`
-        .bodymap .bz { fill: #9aa1ac; stroke: #404754; stroke-width: 1.4; stroke-linejoin: round; cursor: pointer; transition: fill .12s ease; }
-        .bodymap .bz:hover { fill: color-mix(in srgb, var(--brand-primary) 42%, #9aa1ac); }
-        .bodymap .bz.is-sel { fill: var(--brand-primary); stroke: color-mix(in srgb, var(--brand-primary) 55%, #000); }
-        .bodymap .side { fill: var(--muted-2); font: 800 9px ui-sans-serif, system-ui; letter-spacing: .14em; opacity: .65; }
+        .hot { position:absolute; background: transparent; border: 2px solid transparent; border-radius: 12px; cursor: pointer; transition: background .12s, border-color .12s; }
+        .hot:hover { background: color-mix(in srgb, var(--brand-primary) 22%, transparent); border-color: color-mix(in srgb, var(--brand-primary) 55%, transparent); }
+        .hot.sel { background: color-mix(in srgb, var(--brand-primary) 45%, transparent); border-color: var(--brand-primary); }
+        .side2 { font: 800 10px ui-sans-serif, system-ui; letter-spacing: .14em; color: var(--muted-2); opacity: .7; }
       `}</style>
 
       <div className="mb-3 flex rounded-xl border border-border bg-surface p-0.5">
@@ -38,55 +80,28 @@ export function BodyMap({ value, onSelect }: { value: string | null; onSelect: (
         ))}
       </div>
 
-      <svg viewBox="0 0 200 446" className="bodymap h-[348px] w-auto select-none">
-        <text x="30" y="58" className="side">DX</text>
-        <text x="158" y="58" className="side" textAnchor="end">SX</text>
+      {/* indicatori lato (prospettiva del giocatore) */}
+      <div className="flex w-[210px] justify-between px-2">
+        <span className="side2">{view === "fronte" ? "DX" : "SX"}</span>
+        <span className="side2">{view === "fronte" ? "SX" : "DX"}</span>
+      </div>
 
-        {view === "fronte" ? (
-          <>
-            <Zone label="Testa"><ellipse cx="100" cy="28" rx="19" ry="22" /></Zone>
-            <Zone label="Collo"><rect x="91" y="46" width="18" height="15" rx="4" /></Zone>
-            <Zone label="Spalla dx"><ellipse cx="65" cy="80" rx="18" ry="15" /></Zone>
-            <Zone label="Spalla sx"><ellipse cx="135" cy="80" rx="18" ry="15" /></Zone>
-            <Zone label="Torace / pettorali"><rect x="63" y="66" width="74" height="48" rx="20" /></Zone>
-            <Zone label="Braccio dx"><rect x="40" y="82" width="20" height="120" rx="10" /></Zone>
-            <Zone label="Braccio sx"><rect x="140" y="82" width="20" height="120" rx="10" /></Zone>
-            <Zone label="Mano dx"><ellipse cx="47" cy="214" rx="10" ry="12" /></Zone>
-            <Zone label="Mano sx"><ellipse cx="153" cy="214" rx="10" ry="12" /></Zone>
-            <Zone label="Addome / core"><rect x="69" y="108" width="62" height="54" rx="16" /></Zone>
-            <Zone label="Inguine / pube"><path d="M84 162 H116 L100 188 Z" /></Zone>
-            <Zone label="Coscia ant. dx"><rect x="67" y="172" width="28" height="92" rx="13" /></Zone>
-            <Zone label="Coscia ant. sx"><rect x="105" y="172" width="28" height="92" rx="13" /></Zone>
-            <Zone label="Ginocchio dx"><ellipse cx="84" cy="272" rx="15" ry="13" /></Zone>
-            <Zone label="Ginocchio sx"><ellipse cx="116" cy="272" rx="15" ry="13" /></Zone>
-            <Zone label="Tibia / stinco dx"><rect x="74" y="286" width="20" height="84" rx="10" /></Zone>
-            <Zone label="Tibia / stinco sx"><rect x="106" y="286" width="20" height="84" rx="10" /></Zone>
-            <Zone label="Caviglia / piede dx"><path d="M71 372 h23 v10 l10 9 v7 H71 Z" /></Zone>
-            <Zone label="Caviglia / piede sx"><path d="M129 372 h-23 v10 l-10 9 v7 H129 Z" /></Zone>
-          </>
-        ) : (
-          <>
-            <Zone label="Nuca / cervicale"><ellipse cx="100" cy="28" rx="19" ry="22" /></Zone>
-            <Zone label="Collo (cervicale)"><rect x="91" y="46" width="18" height="15" rx="4" /></Zone>
-            <Zone label="Spalla dx"><ellipse cx="135" cy="80" rx="18" ry="15" /></Zone>
-            <Zone label="Spalla sx"><ellipse cx="65" cy="80" rx="18" ry="15" /></Zone>
-            <Zone label="Schiena alta / dorsale"><rect x="63" y="66" width="74" height="50" rx="20" /></Zone>
-            <Zone label="Braccio dx"><rect x="140" y="82" width="20" height="120" rx="10" /></Zone>
-            <Zone label="Braccio sx"><rect x="40" y="82" width="20" height="120" rx="10" /></Zone>
-            <Zone label="Zona lombare"><rect x="69" y="112" width="62" height="42" rx="14" /></Zone>
-            <Zone label="Gluteo dx"><ellipse cx="84" cy="170" rx="20" ry="17" /></Zone>
-            <Zone label="Gluteo sx"><ellipse cx="116" cy="170" rx="20" ry="17" /></Zone>
-            <Zone label="Coscia post. dx"><rect x="67" y="186" width="28" height="86" rx="13" /></Zone>
-            <Zone label="Coscia post. sx"><rect x="105" y="186" width="28" height="86" rx="13" /></Zone>
-            <Zone label="Cavo popliteo dx"><ellipse cx="84" cy="278" rx="13" ry="10" /></Zone>
-            <Zone label="Cavo popliteo sx"><ellipse cx="116" cy="278" rx="13" ry="10" /></Zone>
-            <Zone label="Polpaccio dx"><rect x="74" y="290" width="20" height="74" rx="10" /></Zone>
-            <Zone label="Polpaccio sx"><rect x="106" y="290" width="20" height="74" rx="10" /></Zone>
-            <Zone label="Tendine d'Achille dx"><rect x="79" y="366" width="12" height="26" rx="5" /></Zone>
-            <Zone label="Tendine d'Achille sx"><rect x="109" y="366" width="12" height="26" rx="5" /></Zone>
-          </>
-        )}
-      </svg>
+      <div
+        className="relative select-none"
+        style={{ width: 210, height: 420, backgroundImage: "url(/omini.png)", backgroundSize: "200% 100%", backgroundPositionX: view === "fronte" ? "0%" : "100%", backgroundRepeat: "no-repeat" }}
+      >
+        {spots.map((s) => (
+          <button
+            key={s.label}
+            type="button"
+            title={s.label}
+            aria-label={s.label}
+            onClick={() => onSelect(s.label)}
+            className={`hot ${value === s.label ? "sel" : ""}`}
+            style={{ left: `${s.x}%`, top: `${s.y}%`, width: `${s.w}%`, height: `${s.h}%` }}
+          />
+        ))}
+      </div>
 
       <div className="mt-2 min-h-[20px] text-center text-[13px]">
         {value ? (
