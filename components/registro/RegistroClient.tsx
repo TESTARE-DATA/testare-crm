@@ -59,6 +59,9 @@ export function RegistroClient({ clientId, athletes, seedEvents, seedAttendance,
   const attById = useMemo(() => new Map(attendance.map((r) => [r.id, r])), [attendance]);
 
   const maxObj = Math.max(1, ...stats.byObjective.map((o) => o.count));
+  // Totale sedute con obiettivo (denominatore per le % "di lavoro fatto").
+  const totalObj = useMemo(() => stats.byObjective.reduce((s, o) => s + o.count, 0), [stats.byObjective]);
+  const pctObj = (n: number) => (totalObj ? Math.round((n / totalObj) * 100) : 0);
   // Raggruppa gli obiettivi per macro-area, preservando l'ordine per conteggio.
   const areas = useMemo(() => {
     const m = new Map<string, { group: string; color: string; total: number; items: typeof stats.byObjective }>();
@@ -108,28 +111,29 @@ export function RegistroClient({ clientId, athletes, seedEvents, seedAttendance,
 
       {/* Sedute per obiettivo — solo nello storico allenamenti */}
       {!isPres && (
-      <Panel title="Sedute per obiettivo" className="mb-5" action={<span className="text-[12px] text-muted">quanti allenamenti per ciascun obiettivo · svolte/totali</span>}>
+      <Panel title="Sedute per obiettivo" className="mb-5" action={<span className="text-[12px] text-muted">% di lavoro svolto per obiettivo · sul totale delle sedute</span>}>
         {stats.byObjective.length === 0 ? (
           <Empty>Nessun obiettivo registrato. Assegna sedute con un obiettivo dal calendario.</Empty>
         ) : (
-          <div className="grid gap-x-8 gap-y-5 p-4 md:grid-cols-2">
+          <div className="grid gap-x-8 gap-y-4 p-4 md:grid-cols-2">
             {areas.map((area) => (
               <div key={area.group}>
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-wide text-muted-2">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: area.color }} />{area.group}
+                <div className="mb-1.5 flex items-center justify-between border-b border-border pb-1">
+                  <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: area.color }} />{area.group}
                   </span>
-                  <span className="text-[12px] font-semibold text-muted">{area.total} sedute</span>
+                  <span className="text-[12px] font-bold tabular-nums" style={{ color: area.color }}>{pctObj(area.total)}%<span className="ml-1 font-normal text-muted-2">· {area.total} sed.</span></span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {area.items.map((o) => (
-                    <div key={o.label} className="flex items-center gap-3">
-                      <span className="flex h-5 min-w-[34px] items-center justify-center rounded-md px-1.5 text-[10px] font-bold text-white" style={{ backgroundColor: o.color }}>{o.acr}</span>
-                      <span className="w-40 shrink-0 truncate text-[13px] font-medium" title={o.label}>{o.label}</span>
-                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-background">
+                    <div key={o.label} className="flex items-center gap-2">
+                      <span className="flex h-4 min-w-[30px] items-center justify-center rounded px-1 text-[9px] font-bold text-white" style={{ backgroundColor: o.color }}>{o.acr}</span>
+                      <span className="w-32 shrink-0 truncate text-[12px] font-medium" title={o.label}>{o.label}</span>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-background">
                         <div className="h-full rounded-full" style={{ width: `${(o.count / maxObj) * 100}%`, backgroundColor: o.color }} />
                       </div>
-                      <span className="w-16 shrink-0 text-right text-[12px] tabular-nums text-muted"><b className="text-foreground">{o.count}</b> <span className="text-muted-2">({o.done} sv.)</span></span>
+                      <span className="w-10 shrink-0 text-right text-[12px] font-bold tabular-nums">{pctObj(o.count)}%</span>
+                      <span className="w-12 shrink-0 text-right text-[11px] tabular-nums text-muted-2">{o.count} sed.</span>
                     </div>
                   ))}
                 </div>
