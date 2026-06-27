@@ -26,7 +26,9 @@ export function IntakeScheda({ intake, record, compact }: { intake?: MedicalInta
   const dataInf = i.dataInfortunio ?? record?.date;
   const mecc = i.meccanismo ?? record?.mechanism;
   const grav = i.gravita ?? record?.severity;
-  const diag = i.diagnosi ?? record?.injury;
+  // La segnalazione dello staff ricade nell'anamnesi; la diagnosi resta del medico.
+  const anamnesi = i.anamnesi ?? record?.injury;
+  const diag = i.diagnosi;
   const prognosi = [i.prognosiGiorni ? `Stop stimato ${i.prognosiGiorni} gg` : null, i.prognosi].filter(Boolean).join(" · ");
 
   return (
@@ -41,7 +43,7 @@ export function IntakeScheda({ intake, record, compact }: { intake?: MedicalInta
       )}
 
       <div className={`grid gap-3 ${compact ? "" : "sm:grid-cols-2"}`}>
-        <Field label="Anamnesi" value={i.anamnesi} />
+        <Field label="Anamnesi" value={anamnesi} />
         <Field label="Esame obiettivo" value={i.esameObiettivo} />
         <Field label="Esami strumentali" value={i.esamiStrumentali} />
         <Field label="Diagnosi" value={diag} />

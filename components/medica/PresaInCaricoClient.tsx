@@ -148,10 +148,12 @@ function IntakeModal({ entry, staff, onClose, onSave }: { entry: { record: Medic
     dataInfortunio: i?.dataInfortunio ?? r.date,
     meccanismo: i?.meccanismo ?? r.mechanism ?? "",
     gravita: (i?.gravita ?? r.severity ?? "") as InjurySeverity | "",
-    anamnesi: i?.anamnesi ?? "",
+    // La segnalazione dello staff (record.injury) è anamnesi, non diagnosi:
+    // il medico la trova già scritta e formula lui la diagnosi.
+    anamnesi: i?.anamnesi ?? r.injury,
     esameObiettivo: i?.esameObiettivo ?? "",
     esamiStrumentali: i?.esamiStrumentali ?? "",
-    diagnosi: i?.diagnosi ?? r.injury,
+    diagnosi: i?.diagnosi ?? "",
     prognosiGiorni: (i?.prognosiGiorni ?? r.daysOut ?? "") as number | "",
     prognosi: i?.prognosi ?? "",
     prescrizione: i?.prescrizione ?? r.treatment,

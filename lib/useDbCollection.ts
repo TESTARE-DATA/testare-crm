@@ -9,42 +9,70 @@ import { dbRead, dbUpsert, dbRemove } from "@/lib/db/actions";
 // non cambiano logica: continuano a fare [...seedImmutabile, ...items], ma gli
 // items (le mutazioni dell'utente) ora sono condivisi nel database.
 // Le scritture sono ottimistiche; in caso di errore si riallinea col DB.
+//
+// CACHE: una mappa a livello di modulo conserva l'ultimo valore noto di ogni
+// collezione per tutta la sessione SPA. Così, navigando tra pagine (es. Rosa →
+// Presa in carico → Diario), la lista compare ISTANTANEA con l'ultimo dato —
+// inclusa la segnalazione appena inviata — e si riallinea col DB in sottofondo,
+// senza il "lampo" di lista vuota durante il roundtrip.
 // ============================================================================
 
+const cache = new Map<string, unknown[]>();
+
 export function useDbCollection<T extends { id: string }>(key: string) {
-  const [items, setItems] = useState<T[]>([]);
-  const [ready, setReady] = useState(false);
+  const [items, setItems] = useState<T[]>(() => (cache.get(key) as T[]) ?? []);
+  const [ready, setReady] = useState(() => cache.has(key));
 
   const refresh = useCallback(() => {
     dbRead<T>(key)
-      .then((rows) => setItems(rows))
+      .then((rows) => { cache.set(key, rows); setItems(rows); })
       .catch(() => {});
   }, [key]);
 
   useEffect(() => {
     let alive = true;
-    setReady(false);
+    // Mostra subito l'eventuale valore in cache, poi riallinea col DB.
+    setItems((cache.get(key) as T[]) ?? []);
+    setReady(cache.has(key));
     dbRead<T>(key)
-      .then((rows) => { if (alive) { setItems(rows); setReady(true); } })
-      .catch(() => { if (alive) { setItems([]); setReady(true); } });
+      .then((rows) => {
+        if (!alive) return;
+        // Fonde col DB ma preserva le aggiunte ottimistiche non ancora atterrate
+        // (es. segnalazione inviata dalla Rosa un istante prima di navigare qui).
+        const byId = new Map(rows.map((r) => [r.id, r] as const));
+        for (const c of (cache.get(key) as T[]) ?? []) if (!byId.has(c.id)) byId.set(c.id, c);
+        const merged = [...byId.values()];
+        cache.set(key, merged);
+        setItems(merged);
+        setReady(true);
+      })
+      .catch(() => { if (alive) setReady(true); });
     return () => { alive = false; };
   }, [key]);
 
   const add = useCallback((item: T) => {
-    setItems((prev) => [...prev, item]);
+    setItems((prev) => { const next = [...prev, item]; cache.set(key, next); return next; });
     dbUpsert(key, item).catch(refresh);
   }, [key, refresh]);
 
   const remove = useCallback((id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    setItems((prev) => { const next = prev.filter((i) => i.id !== id); cache.set(key, next); return next; });
     dbRemove(key, id).catch(refresh);
   }, [key, refresh]);
 
   const update = useCallback((id: string, patch: Partial<T>) => {
-    const existing = items.find((i) => i.id === id);
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
-    if (existing) dbUpsert(key, { ...existing, ...patch }).catch(refresh);
-  }, [key, items, refresh]);
+    let updated: T | undefined;
+    setItems((prev) => {
+      const next = prev.map((i) => {
+        if (i.id !== id) return i;
+        updated = { ...i, ...patch };
+        return updated;
+      });
+      cache.set(key, next);
+      return next;
+    });
+    if (updated) dbUpsert(key, updated).catch(refresh);
+  }, [key, refresh]);
 
   return { items, add, remove, update, ready, refresh };
 }
