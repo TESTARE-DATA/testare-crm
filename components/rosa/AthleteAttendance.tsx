@@ -54,7 +54,7 @@ export function AthleteAttendance({ clientId, athleteId, athletes, seedEvents, s
   return (
     <Panel
       title="Presenze · registro"
-      action={<Link href={sectionHref(clientId, "registro-presenze")} className="brand-text text-[13px] font-semibold hover:underline">Registro →</Link>}
+      action={<Link href={sectionHref(clientId, "registro-attivita/presenze")} className="brand-text text-[13px] font-semibold hover:underline">Registro →</Link>}
     >
       {data.recorded === 0 ? (
         <p className="px-4 py-6 text-sm text-muted">Nessuna presenza registrata per questo atleta.</p>

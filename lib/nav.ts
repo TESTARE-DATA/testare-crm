@@ -26,11 +26,21 @@ export function isGroup(item: NavItem): item is NavGroup {
 
 export const NAV: NavItem[] = [
   { slug: "", label: "Panoramica", icon: "home", description: "Riepilogo del cliente" },
+  { slug: "campionato", label: "Campionato", icon: "trophy", description: "Classifica e risultati live" },
   { slug: "rosa", label: "Rosa", icon: "users", description: "Atleti, anagrafica e KPI" },
   { slug: "readiness", label: "Readiness", icon: "trend", description: "Prontezza da questionario di benessere" },
   { slug: "calendario", label: "Calendario", icon: "calendar", description: "30 giorni · sedute ed eventi" },
   { slug: "programmazione", label: "Piano di Allenamento", icon: "target", description: "Periodizzazione: macrociclo, mesocicli, microcicli e monitoraggio" },
-  { slug: "registro-presenze", label: "Registro Presenze", icon: "clipboard", description: "Presenze per seduta e statistiche per obiettivo" },
+  {
+    group: "Registro Attività",
+    slug: "registro-attivita",
+    icon: "clipboard",
+    description: "Presenze atleti e storico degli allenamenti svolti",
+    children: [
+      { slug: "registro-attivita/presenze", label: "Presenze atleti", icon: "users", description: "Presenza per atleta, carico assorbito e statistiche" },
+      { slug: "registro-attivita/allenamenti-svolti", label: "Allenamenti svolti", icon: "clipboard", description: "Storico delle sedute svolte, per tipo e obiettivo" },
+    ],
+  },
   {
     group: "Area Tecnica",
     slug: "area-tecnica",
@@ -78,7 +88,6 @@ export const NAV: NavItem[] = [
     ],
   },
   { slug: "rd", label: "R&D", icon: "sparkle", description: "Data Intelligence: correlazioni e reportistica" },
-  { slug: "campionato", label: "Campionato", icon: "trophy", description: "Classifica e risultati live" },
   { slug: "importa-dati", label: "Importa Dati", icon: "upload", description: "Import da GPS, CSV, dispositivi" },
 ];
 

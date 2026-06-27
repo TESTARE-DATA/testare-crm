@@ -21,9 +21,11 @@ type Period = "week" | "month" | "all";
 const PERIODS: { v: Period; label: string }[] = [{ v: "week", label: "Microciclo" }, { v: "month", label: "30 giorni" }, { v: "all", label: "Tutto" }];
 const fmt = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" });
 
-export function RegistroClient({ clientId, athletes, seedEvents, seedAttendance }: {
+export function RegistroClient({ clientId, athletes, seedEvents, seedAttendance, view }: {
   clientId: string; athletes: Athlete[]; seedEvents: CalendarEvent[]; seedAttendance: AttendanceRec[];
+  view: "presenze" | "allenamenti";
 }) {
+  const isPres = view === "presenze";
   const { items: localEvents } = useLocalCollection<CalendarEvent>(`events:${clientId}`);
   const { items: assignments } = useLocalCollection<WorkAssignment>(`assignments:${clientId}`);
   const { merged: attendance } = useAttendance(clientId, seedAttendance);
@@ -73,8 +75,11 @@ export function RegistroClient({ clientId, athletes, seedEvents, seedAttendance 
   return (
     <div className="mx-auto max-w-[1400px] fade-up">
       <PageHeader
-        icon="clipboard" title="Registro Presenze"
-        subtitle="Presenze per seduta · carico assorbito e statistiche per obiettivo · collegato a calendario e area medica"
+        icon={isPres ? "users" : "clipboard"}
+        title={isPres ? "Presenze atleti" : "Allenamenti svolti"}
+        subtitle={isPres
+          ? "Presenza per atleta · carico assorbito e statistiche · collegato a calendario e area medica"
+          : "Storico delle sedute svolte · per tipo e obiettivo · registra qui le presenze di ogni seduta"}
         actions={
           <div className="inline-flex rounded-xl border border-border bg-surface p-1">
             {PERIODS.map((p) => (
@@ -85,15 +90,24 @@ export function RegistroClient({ clientId, athletes, seedEvents, seedAttendance 
       />
 
       {/* KPI */}
-      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-        <StatCard label="Allenamenti svolti" value={stats.trainingSessions} icon="calendar" hint={`${stats.recordedSessions} registrati`} />
-        <StatCard label="Presenza media" value={`${stats.avgPresence}%`} icon="users" tone={stats.avgPresence >= 85 ? "good" : stats.avgPresence >= 70 ? "default" : "warn"} hint="squadra, sedute allenanti" />
-        <StatCard label="Carico assorbito" value={`${stats.loadAdherence}%`} icon="load" tone={stats.loadAdherence >= 90 ? "good" : stats.loadAdherence >= 75 ? "default" : "warn"} hint={`${stats.actualLoad} / ${stats.plannedLoad} AU svolti`} />
-        <StatCard label="Sedute registrate" value={`${stats.recordedSessions}/${stats.trainingSessions}`} icon="clipboard" tone="brand" hint="presenze inserite" />
-        <StatCard label="Obiettivi distinti" value={stats.byObjective.length} icon="target" hint={`${areas.length} macro-aree`} />
-      </div>
+      {isPres ? (
+        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard label="Presenza media" value={`${stats.avgPresence}%`} icon="users" tone={stats.avgPresence >= 85 ? "good" : stats.avgPresence >= 70 ? "default" : "warn"} hint="squadra, sedute allenanti" />
+          <StatCard label="Carico assorbito" value={`${stats.loadAdherence}%`} icon="load" tone={stats.loadAdherence >= 90 ? "good" : stats.loadAdherence >= 75 ? "default" : "warn"} hint={`${stats.actualLoad} / ${stats.plannedLoad} AU svolti`} />
+          <StatCard label="Atleti con dati" value={ranked.length} icon="users" hint={`su ${athletes.length} in rosa`} />
+          <StatCard label="Sedute registrate" value={`${stats.recordedSessions}/${stats.trainingSessions}`} icon="clipboard" tone="brand" hint="presenze inserite" />
+        </div>
+      ) : (
+        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard label="Allenamenti svolti" value={stats.trainingSessions} icon="calendar" hint={`${stats.recordedSessions} con presenze`} />
+          <StatCard label="Sedute registrate" value={`${stats.recordedSessions}/${stats.trainingSessions}`} icon="clipboard" tone="brand" hint="presenze inserite" />
+          <StatCard label="Obiettivi distinti" value={stats.byObjective.length} icon="target" hint={`${areas.length} macro-aree`} />
+          <StatCard label="Carico assorbito" value={`${stats.actualLoad} AU`} icon="load" hint={`su ${stats.plannedLoad} pianificati`} />
+        </div>
+      )}
 
-      {/* Sedute per obiettivo */}
+      {/* Sedute per obiettivo — solo nello storico allenamenti */}
+      {!isPres && (
       <Panel title="Sedute per obiettivo" className="mb-5" action={<span className="text-[12px] text-muted">quanti allenamenti per ciascun obiettivo · svolte/totali</span>}>
         {stats.byObjective.length === 0 ? (
           <Empty>Nessun obiettivo registrato. Assegna sedute con un obiettivo dal calendario.</Empty>
@@ -124,7 +138,9 @@ export function RegistroClient({ clientId, athletes, seedEvents, seedAttendance 
           </div>
         )}
       </Panel>
+      )}
 
+      {isPres && (
       <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
         {/* Presenza per atleta */}
         <Panel title="Presenza per atleta" action={<span className="text-[12px] text-muted">{ranked.length} atleti con dati</span>}>
@@ -200,8 +216,10 @@ export function RegistroClient({ clientId, athletes, seedEvents, seedAttendance 
           )}
         </Panel>
       </div>
+      )}
 
-      {/* Registro sedute (log) */}
+      {/* Registro sedute — storico allenamenti svolti */}
+      {!isPres && (
       <Panel title="Registro sedute" className="mt-5" action={
         <div className="flex flex-wrap items-center gap-1">
           <FilterChip active={typeFilter === "all"} onClick={() => setTypeFilter("all")} label="Tutte" />
@@ -246,6 +264,7 @@ export function RegistroClient({ clientId, athletes, seedEvents, seedAttendance 
           </div>
         )}
       </Panel>
+      )}
 
       {selected && <AttendanceRecorder clientId={clientId} session={selected} athletes={athletes} seedAttendance={seedAttendance} onClose={() => setSelected(null)} />}
     </div>
