@@ -146,9 +146,9 @@ export function ReadinessClient({
             const isOpen = expanded === a.id;
             return (
               <li key={a.id}>
-                <div className="flex items-center gap-3 px-5 py-3">
+                <div className="flex items-center gap-4 px-5 py-3">
                   <Avatar firstName={a.first} lastName={a.last} photoUrl={photos[a.id]} shirtNumber={a.shirt} size={40} />
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 sm:flex-none sm:w-52">
                     <div className="truncate text-sm font-semibold">{a.name}</div>
                     <div className="flex items-center gap-2 text-[12px] text-muted">
                       <span>{a.role}</span>
@@ -159,14 +159,14 @@ export function ReadinessClient({
                       ))}
                     </div>
                   </div>
-                  <Sparkline points={h.map((x) => x.score)} />
+                  <div className="hidden min-w-0 flex-1 sm:block"><Sparkline points={h.map((x) => x.score)} /></div>
                   {t ? (
-                    <div className="w-16 text-right">
+                    <div className="w-16 shrink-0 text-right">
                       <div className="text-lg font-extrabold leading-none" style={{ color: t.color }}>{today}%</div>
                       <div className="text-[10px] uppercase tracking-wide text-muted-2">{t.level}</div>
                     </div>
                   ) : (
-                    <div className="w-16 text-right text-muted-2">—</div>
+                    <div className="w-16 shrink-0 text-right text-muted-2">—</div>
                   )}
                   <button onClick={() => setCompiling(a)} className="brand-soft-bg brand-text rounded-lg px-2.5 py-1.5 text-[12px] font-semibold" title="Compila questionario">
                     Compila
@@ -260,20 +260,22 @@ function Questionnaire({ athlete, onClose, onSave }: { athlete: Athlete; onClose
   );
 }
 
-// ---- Sparkline --------------------------------------------------------------
+// ---- Sparkline (fluida: riempie la larghezza disponibile della riga) --------
 function Sparkline({ points }: { points: number[] }) {
-  if (points.length < 2) return <div className="hidden w-24 sm:block" />;
-  const W = 96, H = 28;
+  if (points.length < 2) return <div className="text-[11px] italic text-muted-2">storico insufficiente</div>;
+  const W = 600, H = 40;
   const min = Math.min(...points), max = Math.max(...points);
   const span = max - min || 1;
-  const d = points
-    .map((v, i) => `${(i / (points.length - 1)) * W},${H - ((v - min) / span) * (H - 4) - 2}`)
-    .join(" L ");
-  const last = points[points.length - 1];
-  const up = last >= points[0];
+  const x = (i: number) => (i / (points.length - 1)) * W;
+  const y = (v: number) => H - ((v - min) / span) * (H - 8) - 4;
+  const line = points.map((v, i) => `${x(i)},${y(v)}`).join(" L ");
+  const area = `M ${x(0)},${H} L ${line} L ${x(points.length - 1)},${H} Z`;
+  const up = points[points.length - 1] >= points[0];
+  const color = up ? "var(--good)" : "var(--bad)";
   return (
-    <svg width={W} height={H} className="hidden shrink-0 sm:block" aria-hidden>
-      <path d={`M ${d}`} fill="none" stroke={up ? "var(--good)" : "var(--bad)"} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" aria-hidden className="block">
+      <path d={area} fill={color} fillOpacity={0.1} />
+      <path d={`M ${line}`} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }

@@ -22,6 +22,8 @@ const fmtShort = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateStrin
 const painColor = (p: number) => (p >= 7 ? "var(--bad)" : p >= 4 ? "var(--warn)" : "var(--good)");
 const funcColor = (f: number) => (f >= 7 ? "var(--good)" : f >= 4 ? "var(--warn)" : "var(--bad)"); // funzione: più alto = meglio
 const VISITA_COLOR = "#7c3aed"; // viola: distingue una visita medica dalle sedute di trattamento
+// Griglia condivisa header/righe della tabella "Trattamenti svolti" (colonne allineate).
+const DIARY_COLS = "grid grid-cols-[3.25rem_minmax(0,1fr)_5.5rem_5.5rem_3rem_1.25rem] gap-3";
 
 export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes, seedEntries, initialMedical, initialIntakes, initialClosures, initialEntries, rehabItems, staff }: {
   clientId: string; seedAthletes: Athlete[]; seedMedical: MedicalRecord[]; seedIntakes: MedicalIntake[]; seedEntries: PhysioDiaryEntry[]; initialMedical?: MedicalRecord[]; initialIntakes?: MedicalIntake[]; initialClosures?: MedicalClosure[]; initialEntries?: PhysioDiaryEntry[]; rehabItems: RehabItem[]; staff: StaffMember[];
@@ -110,28 +112,37 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
           {selected.entries.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-muted">Nessuna seduta registrata. Aggiungine una.</p>
           ) : (
-            <ul className="divide-y divide-border">
-              {selected.entries.map((e) => {
-                const isVisita = e.kind === "visita";
-                return (
-                <li key={e.id} className="flex items-center gap-3 py-3 pr-4 pl-4" style={isVisita ? { borderLeft: `3px solid ${VISITA_COLOR}`, paddingLeft: 13, backgroundColor: `color-mix(in srgb, ${VISITA_COLOR} 5%, transparent)` } : undefined}>
-                  <div className="w-14 shrink-0 text-center">
-                    <div className="text-[11px] font-bold tnum">{fmtShort(e.date)}</div>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      {isVisita && <span className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold" style={{ color: VISITA_COLOR, backgroundColor: `color-mix(in srgb, ${VISITA_COLOR} 14%, transparent)` }}><Icon name="medical" size={10} /> Visita</span>}
-                      <span className="truncate text-[13px] font-semibold">{e.treatment}</span>
+            <div>
+              <div className={`${DIARY_COLS} border-b border-border bg-background/60 px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-muted-2`}>
+                <div>Data</div>
+                <div>Trattamento</div>
+                <div className="text-center">Dolore</div>
+                <div className="text-center">Funzione</div>
+                <div className="text-right">Durata</div>
+                <div />
+              </div>
+              <ul className="divide-y divide-border">
+                {selected.entries.map((e) => {
+                  const isVisita = e.kind === "visita";
+                  return (
+                  <li key={e.id} className={`${DIARY_COLS} items-center px-4 py-3`} style={isVisita ? { borderLeft: `3px solid ${VISITA_COLOR}`, paddingLeft: 13, backgroundColor: `color-mix(in srgb, ${VISITA_COLOR} 5%, transparent)` } : undefined}>
+                    <div className="text-[12px] font-bold tnum">{fmtShort(e.date)}</div>
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-1.5">
+                        {isVisita && <span className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold" style={{ color: VISITA_COLOR, backgroundColor: `color-mix(in srgb, ${VISITA_COLOR} 14%, transparent)` }}><Icon name="medical" size={10} /> Visita</span>}
+                        <span className="truncate text-[13px] font-semibold">{e.treatment}</span>
+                      </div>
+                      <div className="truncate text-[11px] text-muted">{e.area}{e.notes ? ` · ${e.notes}` : ""}{e.author ? ` · ${e.author}` : ""}</div>
                     </div>
-                    <div className="truncate text-[11px] text-muted">{e.area}{e.notes ? ` · ${e.notes}` : ""}{e.author ? ` · ${e.author}` : ""}</div>
-                  </div>
-                  <OutcomeCell entry={e} />
-                  <div className="w-12 shrink-0 text-right text-[12px] text-muted tnum">{e.durationMin}′</div>
-                  {localEntryIds.has(e.id) && <button onClick={() => removeEntry(e.id)} title="Elimina" className="text-muted-2 hover:text-red-600">✕</button>}
-                </li>
-                );
-              })}
-            </ul>
+                    <DeltaValue pre={e.painPre} post={e.painPost ?? e.pain} colorOf={painColor} />
+                    <DeltaValue pre={e.funcPre} post={e.funcPost} colorOf={funcColor} />
+                    <div className="text-right text-[12px] text-muted tnum">{e.durationMin}′</div>
+                    <div className="text-right">{localEntryIds.has(e.id) && <button onClick={() => removeEntry(e.id)} title="Elimina" className="text-muted-2 hover:text-red-600">✕</button>}</div>
+                  </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
         </div>
 
@@ -278,26 +289,12 @@ function AddEntryModal({ clientId, athlete, rehabItems, staff, onClose, onAdd }:
   );
 }
 
-// Mostra gli esiti pre/post della seduta: Dolore (più basso = meglio) e Funzione (PSFS, più alto = meglio).
-function OutcomeCell({ entry: e }: { entry: PhysioDiaryEntry }) {
-  const painPost = e.painPost ?? e.pain;
-  const hasPain = e.painPre != null || painPost != null;
-  const hasFunc = e.funcPre != null || e.funcPost != null;
-  if (!hasPain && !hasFunc) return null;
-  return (
-    <div className="flex shrink-0 flex-col items-end gap-0.5 text-[11px]">
-      {hasPain && <Delta label="Dolore" pre={e.painPre} post={painPost} colorOf={painColor} />}
-      {hasFunc && <Delta label="Funzione" pre={e.funcPre} post={e.funcPost} colorOf={funcColor} />}
-    </div>
-  );
-}
-
-function Delta({ label, pre, post, colorOf }: { label: string; pre?: number; post?: number; colorOf: (n: number) => string }) {
+// Cella esito pre→post (Dolore: più basso = meglio · Funzione PSFS: più alto = meglio).
+function DeltaValue({ pre, post, colorOf }: { pre?: number; post?: number; colorOf: (n: number) => string }) {
   const end = post ?? pre;
-  if (end == null) return null;
+  if (end == null) return <div className="text-center text-[12px] text-muted-2">—</div>;
   return (
-    <div className="flex items-center gap-1 tnum">
-      <span className="text-[9px] uppercase tracking-wide text-muted-2">{label}</span>
+    <div className="text-center text-[13px] tnum">
       {pre != null && post != null ? (
         <span className="font-semibold">
           <span className="text-muted-2">{pre}</span>
