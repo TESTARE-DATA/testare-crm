@@ -23,6 +23,7 @@ function buildSeed(clientId: string, staff: StaffMember[]): PhysioDiaryEntry[] {
   const out: PhysioDiaryEntry[] = [];
   active.forEach((m, mi) => {
     for (let k = 0; k < 2; k++) {
+      const painPost = Math.max(0, 5 - k * 2 - (mi % 2));
       out.push({
         id: `${clientId}-diary-seed-${m.id}-${k}`,
         clientId,
@@ -31,7 +32,11 @@ function buildSeed(clientId: string, staff: StaffMember[]): PhysioDiaryEntry[] {
         area: m.bodyPart,
         treatment: TREATMENTS[(mi + k) % TREATMENTS.length],
         durationMin: 25 + ((mi + k) % 3) * 10,
-        pain: Math.max(0, 5 - k * 2 - (mi % 2)),
+        // Pre/post: dolore in calo, funzione in miglioramento col procedere del percorso.
+        painPre: Math.min(10, painPost + 2),
+        painPost,
+        funcPre: Math.min(10, 4 + k * 2),
+        funcPost: Math.min(10, 6 + k * 2),
         notes: k === 0 ? "Fase iniziale, buona tolleranza." : "Progressione del carico.",
         author: physio?.name,
         authorArea: physio ? areaOfRole(physio.role) : undefined,

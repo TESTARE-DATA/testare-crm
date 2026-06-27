@@ -361,7 +361,12 @@ export interface PhysioDiaryEntry {
   area: string;
   treatment: string;
   durationMin: number;
-  pain?: number; // 0–10 (NRS)
+  pain?: number; // 0–10 (NRS) — legacy / valore singolo
+  // Pre/post seduta — risposta al trattamento (riabilitazione, non wellness).
+  painPre?: number; // dolore all'arrivo, 0–10 (NRS)
+  painPost?: number; // dolore a fine seduta, 0–10 (NRS)
+  funcPre?: number; // funzione all'arrivo, 0–10 (logica PSFS: 0 nulla, 10 completa)
+  funcPost?: number; // funzione a fine seduta, 0–10
   notes?: string;
   /** Chi ha compilato la voce e l'area di appartenenza (es. Fisioterapia). */
   author?: string;

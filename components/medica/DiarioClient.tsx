@@ -20,6 +20,7 @@ import { IntakeScheda } from "@/components/medica/IntakeScheda";
 const fmt = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const fmtShort = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("it-IT", { day: "numeric", month: "short", timeZone: "UTC" });
 const painColor = (p: number) => (p >= 7 ? "var(--bad)" : p >= 4 ? "var(--warn)" : "var(--good)");
+const funcColor = (f: number) => (f >= 7 ? "var(--good)" : f >= 4 ? "var(--warn)" : "var(--bad)"); // funzione: più alto = meglio
 const VISITA_COLOR = "#7c3aed"; // viola: distingue una visita medica dalle sedute di trattamento
 
 export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes, seedEntries, rehabItems, staff }: {
@@ -124,7 +125,7 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
                     </div>
                     <div className="truncate text-[11px] text-muted">{e.area}{e.notes ? ` · ${e.notes}` : ""}{e.author ? ` · ${e.author}` : ""}</div>
                   </div>
-                  {e.pain != null && <div className="shrink-0 text-center"><div className="text-base font-bold leading-none" style={{ color: painColor(e.pain) }}>{e.pain}<span className="text-[11px]">/10</span></div><div className="text-[9px] uppercase text-muted-2">dolore</div></div>}
+                  <OutcomeCell entry={e} />
                   <div className="w-12 shrink-0 text-right text-[12px] text-muted tnum">{e.durationMin}′</div>
                   {localEntryIds.has(e.id) && <button onClick={() => removeEntry(e.id)} title="Elimina" className="text-muted-2 hover:text-red-600">✕</button>}
                 </li>
@@ -186,7 +187,12 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
 
 // ---- Esporta PDF (apre una scheda stampabile) -------------------------------
 function exportPdf(a: Athlete, m: MedicalRecord, intake: MedicalIntake | undefined, entries: PhysioDiaryEntry[]) {
-  const rows = entries.map((e) => `<tr><td>${fmtShort(e.date)}</td><td>${e.kind === "visita" ? '<b style="color:#7c3aed">Visita</b>' : "Seduta"}</td><td>${e.treatment}</td><td>${e.area}</td><td style="text-align:center">${e.pain ?? "—"}</td><td style="text-align:right">${e.durationMin}′</td><td>${e.author ?? ""}</td></tr>`).join("");
+  const cell = (pre?: number, post?: number, single?: number) => {
+    const end = post ?? single;
+    if (end == null && pre == null) return "—";
+    return pre != null && post != null ? `${pre}→${post}` : `${end}`;
+  };
+  const rows = entries.map((e) => `<tr><td>${fmtShort(e.date)}</td><td>${e.kind === "visita" ? '<b style="color:#7c3aed">Visita</b>' : "Seduta"}</td><td>${e.treatment}</td><td>${e.area}</td><td style="text-align:center">${cell(e.painPre, e.painPost, e.pain)}</td><td style="text-align:center">${cell(e.funcPre, e.funcPost)}</td><td style="text-align:right">${e.durationMin}′</td><td>${e.author ?? ""}</td></tr>`).join("");
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Diario ${a.lastName}</title>
   <style>body{font-family:-apple-system,Segoe UI,sans-serif;color:#0f172a;padding:32px;max-width:800px;margin:auto}
   h1{font-size:20px;margin:0} .sub{color:#64748b;font-size:13px;margin:2px 0 16px}
@@ -195,7 +201,7 @@ function exportPdf(a: Athlete, m: MedicalRecord, intake: MedicalIntake | undefin
   th{font-size:11px;text-transform:uppercase;color:#64748b} .head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:10px;margin-bottom:14px}</style></head>
   <body><div class="head"><div><h1>Diario riabilitativo</h1><div class="sub">${a.firstName} ${a.lastName} · ${a.role} #${a.shirtNumber}</div></div><div style="font-weight:800;letter-spacing:2px">TESTÀRE</div></div>
   <div class="meta"><div><b>Diagnosi</b>${m.injury} · ${m.bodyPart}</div><div><b>Affidato a</b>${intake?.assignedTo ?? "—"}</div><div><b>Sedute</b>${entries.length}</div></div>
-  <table><thead><tr><th>Data</th><th>Tipo</th><th>Trattamento</th><th>Area</th><th>Dolore</th><th>Durata</th><th>Operatore</th></tr></thead><tbody>${rows || '<tr><td colspan="7">Nessuna seduta</td></tr>'}</tbody></table>
+  <table><thead><tr><th>Data</th><th>Tipo</th><th>Trattamento</th><th>Area</th><th>Dolore</th><th>Funzione</th><th>Durata</th><th>Operatore</th></tr></thead><tbody>${rows || '<tr><td colspan="8">Nessuna seduta</td></tr>'}</tbody></table>
   </body></html>`;
   const w = window.open("", "_blank");
   if (!w) return;
@@ -206,7 +212,7 @@ function AddEntryModal({ clientId, athlete, rehabItems, staff, onClose, onAdd }:
   const physio = staff.find((s) => s.role.toLowerCase().includes("fisio"))?.name ?? staff[0]?.name ?? "";
   const medico = staff.find((s) => s.role.toLowerCase().includes("medic"))?.name ?? physio;
   const [kind, setKind] = useState<DiaryEntryKind>("seduta");
-  const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), area: "", treatment: "", durationMin: 30, pain: 2, notes: "", author: physio });
+  const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), area: "", treatment: "", durationMin: 30, painPre: 3, painPost: 2, funcPre: 5, funcPost: 6, notes: "", author: physio });
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
   const isVisita = kind === "visita";
 
@@ -219,7 +225,13 @@ function AddEntryModal({ clientId, athlete, rehabItems, staff, onClose, onAdd }:
   function submit() {
     if (!form.treatment.trim()) return;
     const member = staff.find((s) => s.name === form.author);
-    onAdd({ id: newId(`${clientId}-diary`), clientId, athleteId: athlete.id, kind, date: form.date, area: form.area || "Generale", treatment: form.treatment, durationMin: form.durationMin, pain: form.pain, notes: form.notes || undefined, author: form.author || undefined, authorArea: member ? areaOfRole(member.role) : undefined });
+    onAdd({
+      id: newId(`${clientId}-diary`), clientId, athleteId: athlete.id, kind, date: form.date,
+      area: form.area || "Generale", treatment: form.treatment, durationMin: form.durationMin,
+      // Pre/post solo per le sedute di trattamento; la visita è una valutazione.
+      ...(isVisita ? {} : { painPre: form.painPre, painPost: form.painPost, funcPre: form.funcPre, funcPost: form.funcPost }),
+      notes: form.notes || undefined, author: form.author || undefined, authorArea: member ? areaOfRole(member.role) : undefined,
+    });
     onClose();
   }
 
@@ -244,8 +256,17 @@ function AddEntryModal({ clientId, athlete, rehabItems, staff, onClose, onAdd }:
             <input className="inp" list={isVisita ? undefined : "rehab-items"} value={form.treatment} onChange={(e) => set("treatment", e.target.value)} placeholder={isVisita ? "es. Controllo ortopedico, eco di controllo…" : "es. Tecarterapia + isometria"} />
             {!isVisita && <datalist id="rehab-items">{rehabItems.map((r) => <option key={r.id} value={r.name} />)}</datalist>}
           </Field>
-          <Field label="Durata (min)"><input type="number" min={0} className="inp" value={form.durationMin} onChange={(e) => set("durationMin", Math.max(0, +e.target.value))} /></Field>
-          <Field label={`Dolore (NRS): ${form.pain}/10`}><input type="range" min={0} max={10} value={form.pain} onChange={(e) => set("pain", +e.target.value)} className="w-full" /></Field>
+          <Field label="Durata (min)" full><input type="number" min={0} className="inp" value={form.durationMin} onChange={(e) => set("durationMin", Math.max(0, +e.target.value))} /></Field>
+          {!isVisita && (
+            <div className="col-span-2 grid grid-cols-2 gap-3 rounded-xl med-soft-bg p-3">
+              <div className="col-span-2 flex items-center gap-1.5 text-[12px] font-semibold med-accent"><Icon name="pulse" size={13} /> Risposta alla seduta · pre / post</div>
+              <Slider label={`Dolore PRE (NRS): ${form.painPre}/10`} value={form.painPre} onChange={(v) => set("painPre", v)} color={painColor(form.painPre)} />
+              <Slider label={`Dolore POST (NRS): ${form.painPost}/10`} value={form.painPost} onChange={(v) => set("painPost", v)} color={painColor(form.painPost)} />
+              <Slider label={`Funzione PRE: ${form.funcPre}/10`} value={form.funcPre} onChange={(v) => set("funcPre", v)} color={funcColor(form.funcPre)} />
+              <Slider label={`Funzione POST: ${form.funcPost}/10`} value={form.funcPost} onChange={(v) => set("funcPost", v)} color={funcColor(form.funcPost)} />
+              <div className="col-span-2 text-[10px] text-muted-2">Funzione (logica PSFS): 0 = nulla · 10 = completa.</div>
+            </div>
+          )}
           <Field label="Note" full><textarea className="inp min-h-[64px] resize-none" value={form.notes} onChange={(e) => set("notes", e.target.value)} placeholder={isVisita ? "Indicazioni, prescrizioni, prossimo controllo…" : "Risposta al trattamento, indicazioni…"} /></Field>
         </div>
         <div className="mt-5 flex justify-end gap-2">
@@ -257,11 +278,53 @@ function AddEntryModal({ clientId, athlete, rehabItems, staff, onClose, onAdd }:
   );
 }
 
+// Mostra gli esiti pre/post della seduta: Dolore (più basso = meglio) e Funzione (PSFS, più alto = meglio).
+function OutcomeCell({ entry: e }: { entry: PhysioDiaryEntry }) {
+  const painPost = e.painPost ?? e.pain;
+  const hasPain = e.painPre != null || painPost != null;
+  const hasFunc = e.funcPre != null || e.funcPost != null;
+  if (!hasPain && !hasFunc) return null;
+  return (
+    <div className="flex shrink-0 flex-col items-end gap-0.5 text-[11px]">
+      {hasPain && <Delta label="Dolore" pre={e.painPre} post={painPost} colorOf={painColor} />}
+      {hasFunc && <Delta label="Funzione" pre={e.funcPre} post={e.funcPost} colorOf={funcColor} />}
+    </div>
+  );
+}
+
+function Delta({ label, pre, post, colorOf }: { label: string; pre?: number; post?: number; colorOf: (n: number) => string }) {
+  const end = post ?? pre;
+  if (end == null) return null;
+  return (
+    <div className="flex items-center gap-1 tnum">
+      <span className="text-[9px] uppercase tracking-wide text-muted-2">{label}</span>
+      {pre != null && post != null ? (
+        <span className="font-semibold">
+          <span className="text-muted-2">{pre}</span>
+          <span className="text-muted-2"> → </span>
+          <span style={{ color: colorOf(post) }}>{post}</span>
+        </span>
+      ) : (
+        <span className="font-semibold" style={{ color: colorOf(end) }}>{end}</span>
+      )}
+    </div>
+  );
+}
+
 function KindBtn({ active, icon, label, color, onClick }: { active: boolean; icon: string; label: string; color: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className="flex flex-1 items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-[13px] font-semibold transition-colors" style={active ? { borderColor: color, color, backgroundColor: `color-mix(in srgb, ${color} 8%, transparent)` } : { borderColor: "var(--border)", color: "var(--muted)" }}>
       <Icon name={icon} size={15} /> {label}
     </button>
+  );
+}
+
+function Slider({ label, value, onChange, color }: { label: string; value: number; onChange: (v: number) => void; color: string }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[12px] font-medium text-muted">{label}</span>
+      <input type="range" min={0} max={10} value={value} onChange={(e) => onChange(+e.target.value)} className="w-full" style={{ accentColor: color }} />
+    </label>
   );
 }
 
