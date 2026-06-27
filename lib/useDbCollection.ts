@@ -19,9 +19,13 @@ import { dbRead, dbUpsert, dbRemove } from "@/lib/db/actions";
 
 const cache = new Map<string, unknown[]>();
 
-export function useDbCollection<T extends { id: string }>(key: string) {
-  const [items, setItems] = useState<T[]>(() => (cache.get(key) as T[]) ?? []);
-  const [ready, setReady] = useState(() => cache.has(key));
+// `initial` (opzionale) = stato già risolto LATO SERVER per la prima resa: evita
+// il flash in cui una lista derivata cambia quando le collezioni arrivano dal DB
+// (es. la coda della Presa in carico che passa da 4 a 3 quando l'intake con
+// "affidato a" viene letto). In hydration combacia con l'HTML del server.
+export function useDbCollection<T extends { id: string }>(key: string, initial?: T[]) {
+  const [items, setItems] = useState<T[]>(() => (cache.get(key) as T[]) ?? initial ?? []);
+  const [ready, setReady] = useState(() => cache.has(key) || initial != null);
 
   const refresh = useCallback(() => {
     dbRead<T>(key)
@@ -31,9 +35,9 @@ export function useDbCollection<T extends { id: string }>(key: string) {
 
   useEffect(() => {
     let alive = true;
-    // Mostra subito l'eventuale valore in cache, poi riallinea col DB.
-    setItems((cache.get(key) as T[]) ?? []);
-    setReady(cache.has(key));
+    // Mostra subito l'eventuale valore in cache (o il seed server), poi riallinea col DB.
+    setItems((cache.get(key) as T[]) ?? initial ?? []);
+    setReady(cache.has(key) || initial != null);
     dbRead<T>(key)
       .then((rows) => {
         if (!alive) return;

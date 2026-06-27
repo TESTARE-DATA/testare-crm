@@ -23,17 +23,17 @@ const painColor = (p: number) => (p >= 7 ? "var(--bad)" : p >= 4 ? "var(--warn)"
 const funcColor = (f: number) => (f >= 7 ? "var(--good)" : f >= 4 ? "var(--warn)" : "var(--bad)"); // funzione: più alto = meglio
 const VISITA_COLOR = "#7c3aed"; // viola: distingue una visita medica dalle sedute di trattamento
 
-export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes, seedEntries, rehabItems, staff }: {
-  clientId: string; seedAthletes: Athlete[]; seedMedical: MedicalRecord[]; seedIntakes: MedicalIntake[]; seedEntries: PhysioDiaryEntry[]; rehabItems: RehabItem[]; staff: StaffMember[];
+export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes, seedEntries, initialMedical, initialIntakes, initialClosures, initialEntries, rehabItems, staff }: {
+  clientId: string; seedAthletes: Athlete[]; seedMedical: MedicalRecord[]; seedIntakes: MedicalIntake[]; seedEntries: PhysioDiaryEntry[]; initialMedical?: MedicalRecord[]; initialIntakes?: MedicalIntake[]; initialClosures?: MedicalClosure[]; initialEntries?: PhysioDiaryEntry[]; rehabItems: RehabItem[]; staff: StaffMember[];
 }) {
   const { athletes } = useRoster(clientId, seedAthletes);
   const { photos } = usePhotos(clientId);
   const { items: localAthletes, update: updateAthlete } = useDbCollection<Athlete>(`athletes:${clientId}`);
   const { setOverride } = useAthleteEdits(clientId);
-  const { items: localEntries, add: addEntry, remove: removeEntry } = useDbCollection<PhysioDiaryEntry>(`physio-diary:${clientId}`);
-  const { items: localMedical } = useDbCollection<MedicalRecord>(`medical:${clientId}`);
-  const { items: localIntakes } = useDbCollection<MedicalIntake>(`intake:${clientId}`);
-  const { items: closures, add: addClosure } = useDbCollection<MedicalClosure>(`medical-closed:${clientId}`);
+  const { items: localEntries, add: addEntry, remove: removeEntry } = useDbCollection<PhysioDiaryEntry>(`physio-diary:${clientId}`, initialEntries);
+  const { items: localMedical } = useDbCollection<MedicalRecord>(`medical:${clientId}`, initialMedical);
+  const { items: localIntakes } = useDbCollection<MedicalIntake>(`intake:${clientId}`, initialIntakes);
+  const { items: closures, add: addClosure } = useDbCollection<MedicalClosure>(`medical-closed:${clientId}`, initialClosures);
 
   const [openAthlete, setOpenAthlete] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);

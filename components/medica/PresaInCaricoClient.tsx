@@ -24,14 +24,14 @@ type IntakeValues = Omit<MedicalIntake, "id" | "clientId" | "updatedAt">;
 const fmt = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" }) : "—");
 const SEV_COLOR: Record<string, string> = { lieve: "var(--elite)", moderato: "var(--warn)", grave: "var(--bad)" };
 
-export function PresaInCaricoClient({ clientId, seedAthletes, seedMedical, seedIntakes, staff }: { clientId: string; seedAthletes: Athlete[]; seedMedical: MedicalRecord[]; seedIntakes: MedicalIntake[]; staff: StaffMember[] }) {
+export function PresaInCaricoClient({ clientId, seedAthletes, seedMedical, seedIntakes, initialMedical, initialIntakes, initialClosures, staff }: { clientId: string; seedAthletes: Athlete[]; seedMedical: MedicalRecord[]; seedIntakes: MedicalIntake[]; initialMedical?: MedicalRecord[]; initialIntakes?: MedicalIntake[]; initialClosures?: MedicalClosure[]; staff: StaffMember[] }) {
   const { athletes } = useRoster(clientId, seedAthletes);
   const { photos } = usePhotos(clientId);
-  const { items: localMedical, add: addMedical } = useDbCollection<MedicalRecord>(`medical:${clientId}`);
+  const { items: localMedical, add: addMedical } = useDbCollection<MedicalRecord>(`medical:${clientId}`, initialMedical);
   const { items: localAthletes, update: updateAthlete } = useDbCollection<Athlete>(`athletes:${clientId}`);
   const { setOverride } = useAthleteEdits(clientId);
-  const { items: intakes, add: addIntake, update: updateIntake } = useDbCollection<MedicalIntake>(`intake:${clientId}`);
-  const { items: closures } = useDbCollection<MedicalClosure>(`medical-closed:${clientId}`);
+  const { items: intakes, add: addIntake, update: updateIntake } = useDbCollection<MedicalIntake>(`intake:${clientId}`, initialIntakes);
+  const { items: closures } = useDbCollection<MedicalClosure>(`medical-closed:${clientId}`, initialClosures);
   const [editing, setEditing] = useState<{ record: MedicalRecord; athlete: Athlete; intake?: MedicalIntake } | null>(null);
   const [picking, setPicking] = useState(false);
   const [picked, setPicked] = useState<Athlete | null>(null);
