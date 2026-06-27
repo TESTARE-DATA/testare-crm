@@ -45,6 +45,7 @@ export function IntakeScheda({ intake, record, compact }: { intake?: MedicalInta
       <div className={`grid gap-3 ${compact ? "" : "sm:grid-cols-2"}`}>
         <Field label="Anamnesi" value={anamnesi} />
         <Field label="Esame obiettivo" value={i.esameObiettivo} />
+        <Field label="Sospetto diagnostico" value={i.sospettoDiagnostico} />
         <Field label="Esami strumentali" value={i.esamiStrumentali} />
         <Field label="Diagnosi" value={diag} />
         <Field label="Prognosi" value={prognosi || undefined} />

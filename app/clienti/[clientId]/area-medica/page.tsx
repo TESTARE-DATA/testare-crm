@@ -1,18 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { getAthletes, getMedical } from "@/lib/data";
+import { getMedical } from "@/lib/data";
+import { getResolvedAthletes } from "@/lib/server-roster";
 import { getRehabItems, getRehabTemplates } from "@/lib/medical";
 import { sectionHref } from "@/lib/nav";
 import { Icon } from "@/components/Icon";
 import { MedHeader } from "@/components/medica/MedHeader";
+
+export const dynamic = "force-dynamic";
 
 export default async function AreaMedicaHub({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = await params;
   const client = getClient(clientId);
   if (!client) notFound();
 
-  const athletes = getAthletes(clientId);
+  const athletes = await getResolvedAthletes(clientId);
   const active = getMedical(clientId).filter((m) => m.phase !== "conclusa");
   const inCura = new Set([
     ...active.map((m) => m.athleteId),

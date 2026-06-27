@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
 import { getAthletes, getMedical } from "@/lib/data";
+import { getResolvedAthletes } from "@/lib/server-roster";
 import { getRehabItems, areaOfRole, medicalStaff, getSeedIntakes } from "@/lib/medical";
 import type { PhysioDiaryEntry, StaffMember } from "@/lib/types";
 import { DiarioClient } from "@/components/medica/DiarioClient";
+
+export const dynamic = "force-dynamic";
 
 const TREATMENTS = [
   "Tecarterapia + crioterapia",
@@ -47,7 +50,7 @@ export default async function DiarioPage({ params }: { params: Promise<{ clientI
   return (
     <DiarioClient
       clientId={clientId}
-      seedAthletes={getAthletes(clientId)}
+      seedAthletes={await getResolvedAthletes(clientId)}
       seedMedical={getMedical(clientId)}
       seedIntakes={getSeedIntakes(clientId, physio?.name, physio?.role)}
       seedEntries={buildSeed(clientId, staff)}

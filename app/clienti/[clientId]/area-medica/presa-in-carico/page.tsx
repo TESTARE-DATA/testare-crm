@@ -1,8 +1,11 @@
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { getAthletes, getMedical } from "@/lib/data";
+import { getMedical } from "@/lib/data";
+import { getResolvedAthletes } from "@/lib/server-roster";
 import { medicalStaff, getSeedIntakes } from "@/lib/medical";
 import { PresaInCaricoClient } from "@/components/medica/PresaInCaricoClient";
+
+export const dynamic = "force-dynamic";
 
 export default async function PresaInCaricoPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = await params;
@@ -13,7 +16,7 @@ export default async function PresaInCaricoPage({ params }: { params: Promise<{ 
   return (
     <PresaInCaricoClient
       clientId={clientId}
-      seedAthletes={getAthletes(clientId)}
+      seedAthletes={await getResolvedAthletes(clientId)}
       seedMedical={getMedical(clientId)}
       seedIntakes={getSeedIntakes(clientId, physio?.name, physio?.role)}
       staff={staff}

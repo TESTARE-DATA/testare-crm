@@ -152,6 +152,7 @@ function IntakeModal({ entry, staff, onClose, onSave }: { entry: { record: Medic
     // il medico la trova già scritta e formula lui la diagnosi.
     anamnesi: i?.anamnesi ?? r.injury,
     esameObiettivo: i?.esameObiettivo ?? "",
+    sospettoDiagnostico: i?.sospettoDiagnostico ?? "",
     esamiStrumentali: i?.esamiStrumentali ?? "",
     diagnosi: i?.diagnosi ?? "",
     prognosiGiorni: (i?.prognosiGiorni ?? r.daysOut ?? "") as number | "",
@@ -172,6 +173,7 @@ function IntakeModal({ entry, staff, onClose, onSave }: { entry: { record: Medic
       gravita: (form.gravita || undefined) as InjurySeverity | undefined,
       anamnesi: t(form.anamnesi),
       esameObiettivo: t(form.esameObiettivo),
+      sospettoDiagnostico: t(form.sospettoDiagnostico),
       esamiStrumentali: t(form.esamiStrumentali),
       diagnosi: t(form.diagnosi),
       prognosiGiorni: form.prognosiGiorni === "" ? undefined : Number(form.prognosiGiorni),
@@ -215,6 +217,7 @@ function IntakeModal({ entry, staff, onClose, onSave }: { entry: { record: Medic
           <div className="grid gap-3 sm:grid-cols-2">
             <Area label="Anamnesi" value={form.anamnesi} onChange={(v) => set("anamnesi", v)} placeholder="Storia clinica, episodi precedenti, sintomi…" />
             <Area label="Esame obiettivo" value={form.esameObiettivo} onChange={(v) => set("esameObiettivo", v)} placeholder="Ispezione, palpazione, ROM, dolore (NRS), test…" />
+            <Area label="Sospetto diagnostico" value={form.sospettoDiagnostico} onChange={(v) => set("sospettoDiagnostico", v)} placeholder="Ipotesi iniziale in attesa di conferma strumentale…" />
             <Area label="Esami strumentali" value={form.esamiStrumentali} onChange={(v) => set("esamiStrumentali", v)} placeholder="Eco / RX / RMN ed esito…" />
             <Area label="Diagnosi" value={form.diagnosi} onChange={(v) => set("diagnosi", v)} placeholder="Diagnosi clinica e strumentale…" />
           </div>

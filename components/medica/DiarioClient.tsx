@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Athlete, MedicalClosure, MedicalIntake, MedicalRecord, PhysioDiaryEntry, RehabItem, StaffMember } from "@/lib/types";
+import type { Athlete, DiaryEntryKind, MedicalClosure, MedicalIntake, MedicalRecord, PhysioDiaryEntry, RehabItem, StaffMember } from "@/lib/types";
 import { newId } from "@/lib/store";
 import { useDbCollection } from "@/lib/useDbCollection";
 import { useRoster } from "@/lib/useRoster";
@@ -20,6 +20,7 @@ import { IntakeScheda } from "@/components/medica/IntakeScheda";
 const fmt = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const fmtShort = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("it-IT", { day: "numeric", month: "short", timeZone: "UTC" });
 const painColor = (p: number) => (p >= 7 ? "var(--bad)" : p >= 4 ? "var(--warn)" : "var(--good)");
+const VISITA_COLOR = "#7c3aed"; // viola: distingue una visita medica dalle sedute di trattamento
 
 export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes, seedEntries, rehabItems, staff }: {
   clientId: string; seedAthletes: Athlete[]; seedMedical: MedicalRecord[]; seedIntakes: MedicalIntake[]; seedEntries: PhysioDiaryEntry[]; rehabItems: RehabItem[]; staff: StaffMember[];
@@ -109,20 +110,26 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
             <p className="px-4 py-8 text-center text-sm text-muted">Nessuna seduta registrata. Aggiungine una.</p>
           ) : (
             <ul className="divide-y divide-border">
-              {selected.entries.map((e) => (
-                <li key={e.id} className="flex items-center gap-3 px-4 py-3">
+              {selected.entries.map((e) => {
+                const isVisita = e.kind === "visita";
+                return (
+                <li key={e.id} className="flex items-center gap-3 py-3 pr-4 pl-4" style={isVisita ? { borderLeft: `3px solid ${VISITA_COLOR}`, paddingLeft: 13, backgroundColor: `color-mix(in srgb, ${VISITA_COLOR} 5%, transparent)` } : undefined}>
                   <div className="w-14 shrink-0 text-center">
                     <div className="text-[11px] font-bold tnum">{fmtShort(e.date)}</div>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-semibold">{e.treatment}</div>
+                    <div className="flex items-center gap-1.5">
+                      {isVisita && <span className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold" style={{ color: VISITA_COLOR, backgroundColor: `color-mix(in srgb, ${VISITA_COLOR} 14%, transparent)` }}><Icon name="medical" size={10} /> Visita</span>}
+                      <span className="truncate text-[13px] font-semibold">{e.treatment}</span>
+                    </div>
                     <div className="truncate text-[11px] text-muted">{e.area}{e.notes ? ` · ${e.notes}` : ""}{e.author ? ` · ${e.author}` : ""}</div>
                   </div>
                   {e.pain != null && <div className="shrink-0 text-center"><div className="text-base font-bold leading-none" style={{ color: painColor(e.pain) }}>{e.pain}<span className="text-[11px]">/10</span></div><div className="text-[9px] uppercase text-muted-2">dolore</div></div>}
                   <div className="w-12 shrink-0 text-right text-[12px] text-muted tnum">{e.durationMin}′</div>
                   {localEntryIds.has(e.id) && <button onClick={() => removeEntry(e.id)} title="Elimina" className="text-muted-2 hover:text-red-600">✕</button>}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>
@@ -179,7 +186,7 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
 
 // ---- Esporta PDF (apre una scheda stampabile) -------------------------------
 function exportPdf(a: Athlete, m: MedicalRecord, intake: MedicalIntake | undefined, entries: PhysioDiaryEntry[]) {
-  const rows = entries.map((e) => `<tr><td>${fmtShort(e.date)}</td><td>${e.treatment}</td><td>${e.area}</td><td style="text-align:center">${e.pain ?? "—"}</td><td style="text-align:right">${e.durationMin}′</td><td>${e.author ?? ""}</td></tr>`).join("");
+  const rows = entries.map((e) => `<tr><td>${fmtShort(e.date)}</td><td>${e.kind === "visita" ? '<b style="color:#7c3aed">Visita</b>' : "Seduta"}</td><td>${e.treatment}</td><td>${e.area}</td><td style="text-align:center">${e.pain ?? "—"}</td><td style="text-align:right">${e.durationMin}′</td><td>${e.author ?? ""}</td></tr>`).join("");
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Diario ${a.lastName}</title>
   <style>body{font-family:-apple-system,Segoe UI,sans-serif;color:#0f172a;padding:32px;max-width:800px;margin:auto}
   h1{font-size:20px;margin:0} .sub{color:#64748b;font-size:13px;margin:2px 0 16px}
@@ -188,7 +195,7 @@ function exportPdf(a: Athlete, m: MedicalRecord, intake: MedicalIntake | undefin
   th{font-size:11px;text-transform:uppercase;color:#64748b} .head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:10px;margin-bottom:14px}</style></head>
   <body><div class="head"><div><h1>Diario riabilitativo</h1><div class="sub">${a.firstName} ${a.lastName} · ${a.role} #${a.shirtNumber}</div></div><div style="font-weight:800;letter-spacing:2px">TESTÀRE</div></div>
   <div class="meta"><div><b>Diagnosi</b>${m.injury} · ${m.bodyPart}</div><div><b>Affidato a</b>${intake?.assignedTo ?? "—"}</div><div><b>Sedute</b>${entries.length}</div></div>
-  <table><thead><tr><th>Data</th><th>Trattamento</th><th>Area</th><th>Dolore</th><th>Durata</th><th>Operatore</th></tr></thead><tbody>${rows || '<tr><td colspan="6">Nessuna seduta</td></tr>'}</tbody></table>
+  <table><thead><tr><th>Data</th><th>Tipo</th><th>Trattamento</th><th>Area</th><th>Dolore</th><th>Durata</th><th>Operatore</th></tr></thead><tbody>${rows || '<tr><td colspan="7">Nessuna seduta</td></tr>'}</tbody></table>
   </body></html>`;
   const w = window.open("", "_blank");
   if (!w) return;
@@ -197,20 +204,33 @@ function exportPdf(a: Athlete, m: MedicalRecord, intake: MedicalIntake | undefin
 
 function AddEntryModal({ clientId, athlete, rehabItems, staff, onClose, onAdd }: { clientId: string; athlete: Athlete; rehabItems: RehabItem[]; staff: StaffMember[]; onClose: () => void; onAdd: (e: PhysioDiaryEntry) => void }) {
   const physio = staff.find((s) => s.role.toLowerCase().includes("fisio"))?.name ?? staff[0]?.name ?? "";
+  const medico = staff.find((s) => s.role.toLowerCase().includes("medic"))?.name ?? physio;
+  const [kind, setKind] = useState<DiaryEntryKind>("seduta");
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), area: "", treatment: "", durationMin: 30, pain: 2, notes: "", author: physio });
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const isVisita = kind === "visita";
+
+  // Cambiando tipo, propone l'operatore di riferimento (medico per la visita, fisio per la seduta).
+  function pickKind(k: DiaryEntryKind) {
+    setKind(k);
+    set("author", k === "visita" ? medico : physio);
+  }
 
   function submit() {
     if (!form.treatment.trim()) return;
     const member = staff.find((s) => s.name === form.author);
-    onAdd({ id: newId(`${clientId}-diary`), clientId, athleteId: athlete.id, date: form.date, area: form.area || "Generale", treatment: form.treatment, durationMin: form.durationMin, pain: form.pain, notes: form.notes || undefined, author: form.author || undefined, authorArea: member ? areaOfRole(member.role) : undefined });
+    onAdd({ id: newId(`${clientId}-diary`), clientId, athleteId: athlete.id, kind, date: form.date, area: form.area || "Generale", treatment: form.treatment, durationMin: form.durationMin, pain: form.pain, notes: form.notes || undefined, author: form.author || undefined, authorArea: member ? areaOfRole(member.role) : undefined });
     onClose();
   }
 
   return (
     <Modal onClose={onClose} size="md">
-      <ModalHeader title="Nuova seduta di fisioterapia" subtitle={`${athlete.firstName} ${athlete.lastName}`} onClose={onClose} accent="var(--med)" />
+      <ModalHeader title={isVisita ? "Nuova visita" : "Nuova seduta di fisioterapia"} subtitle={`${athlete.firstName} ${athlete.lastName}`} onClose={onClose} accent={isVisita ? VISITA_COLOR : "var(--med)"} />
       <div className="overflow-y-auto p-6">
+        <div className="mb-4 flex gap-2">
+          <KindBtn active={!isVisita} icon="pulse" label="Seduta" color="var(--med)" onClick={() => pickKind("seduta")} />
+          <KindBtn active={isVisita} icon="medical" label="Visita" color={VISITA_COLOR} onClick={() => pickKind("visita")} />
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Compilato da" full>
             <select className="inp" value={form.author} onChange={(e) => set("author", e.target.value)}>
@@ -220,20 +240,28 @@ function AddEntryModal({ clientId, athlete, rehabItems, staff, onClose, onAdd }:
           </Field>
           <Field label="Data"><input type="date" className="inp" value={form.date} onChange={(e) => set("date", e.target.value)} /></Field>
           <Field label="Distretto / area"><input className="inp" value={form.area} onChange={(e) => set("area", e.target.value)} placeholder="es. Ginocchio dx" /></Field>
-          <Field label="Trattamento / esercizio" full>
-            <input className="inp" list="rehab-items" value={form.treatment} onChange={(e) => set("treatment", e.target.value)} placeholder="es. Tecarterapia + isometria" />
-            <datalist id="rehab-items">{rehabItems.map((r) => <option key={r.id} value={r.name} />)}</datalist>
+          <Field label={isVisita ? "Esito / motivo della visita" : "Trattamento / esercizio"} full>
+            <input className="inp" list={isVisita ? undefined : "rehab-items"} value={form.treatment} onChange={(e) => set("treatment", e.target.value)} placeholder={isVisita ? "es. Controllo ortopedico, eco di controllo…" : "es. Tecarterapia + isometria"} />
+            {!isVisita && <datalist id="rehab-items">{rehabItems.map((r) => <option key={r.id} value={r.name} />)}</datalist>}
           </Field>
           <Field label="Durata (min)"><input type="number" min={0} className="inp" value={form.durationMin} onChange={(e) => set("durationMin", Math.max(0, +e.target.value))} /></Field>
           <Field label={`Dolore (NRS): ${form.pain}/10`}><input type="range" min={0} max={10} value={form.pain} onChange={(e) => set("pain", +e.target.value)} className="w-full" /></Field>
-          <Field label="Note" full><textarea className="inp min-h-[64px] resize-none" value={form.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Risposta al trattamento, indicazioni…" /></Field>
+          <Field label="Note" full><textarea className="inp min-h-[64px] resize-none" value={form.notes} onChange={(e) => set("notes", e.target.value)} placeholder={isVisita ? "Indicazioni, prescrizioni, prossimo controllo…" : "Risposta al trattamento, indicazioni…"} /></Field>
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-background">Annulla</button>
-          <button onClick={submit} disabled={!form.treatment.trim()} className="med-accent-bg rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Salva seduta</button>
+          <button onClick={submit} disabled={!form.treatment.trim()} className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: isVisita ? VISITA_COLOR : "var(--med)" }}>{isVisita ? "Salva visita" : "Salva seduta"}</button>
         </div>
       </div>
     </Modal>
+  );
+}
+
+function KindBtn({ active, icon, label, color, onClick }: { active: boolean; icon: string; label: string; color: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="flex flex-1 items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-[13px] font-semibold transition-colors" style={active ? { borderColor: color, color, backgroundColor: `color-mix(in srgb, ${color} 8%, transparent)` } : { borderColor: "var(--border)", color: "var(--muted)" }}>
+      <Icon name={icon} size={15} /> {label}
+    </button>
   );
 }
 

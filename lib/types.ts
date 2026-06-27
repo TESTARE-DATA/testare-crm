@@ -300,6 +300,7 @@ export interface MedicalIntake {
   // --- Valutazione ---
   anamnesi?: string;
   esameObiettivo?: string;
+  sospettoDiagnostico?: string; // ipotesi iniziale del medico, prima degli esami
   esamiStrumentali?: string;
   diagnosi?: string;
   // --- Prognosi ---
@@ -349,11 +350,14 @@ export interface RehabItem {
 }
 
 /** Voce del diario fisioterapico (una seduta di riabilitazione). */
+export type DiaryEntryKind = "seduta" | "visita";
 export interface PhysioDiaryEntry {
   id: string;
   clientId: string;
   athleteId: string;
   date: string; // ISO
+  /** Seduta di trattamento (default) o visita/controllo medico nel percorso. */
+  kind?: DiaryEntryKind;
   area: string;
   treatment: string;
   durationMin: number;
