@@ -10,6 +10,7 @@ import { useRoster } from "@/lib/useRoster";
 import { useAthleteEdits } from "@/lib/useAthleteEdits";
 import { usePhotos } from "@/lib/usePhotos";
 import { caseStage } from "@/lib/medical-flow";
+import { OSICS, osicsValue } from "@/lib/osics";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { Modal, ModalHeader } from "@/components/Modal";
@@ -230,7 +231,10 @@ function IntakeModal({ entry, staff, onClose, onSave }: { entry: { record: Medic
                 <option value="non-contatto">non-contatto</option><option value="contatto">contatto</option><option value="overuse">overuse</option><option value="indiretto">indiretto</option>
               </select>
             </Field>
-            <Field label="Classificazione / codice"><input className="inp" value={form.classificazione} onChange={(e) => set("classificazione", e.target.value)} placeholder="es. BAMIC 2b · OSICS…" /></Field>
+            <Field label="Diagnosi / codice (OSICS)">
+              <input className="inp" list="osics-list" value={form.classificazione} onChange={(e) => set("classificazione", e.target.value)} placeholder="scegli o digita · es. TH1, BAMIC 2b…" />
+              <datalist id="osics-list">{OSICS.map((o) => <option key={o.code} value={osicsValue(o)}>{o.region}</option>)}</datalist>
+            </Field>
           </div>
         </Section>
 
