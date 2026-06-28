@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
 import { getAthletes, getEvents, getExercises, getTemplates, getSeedAttendance } from "@/lib/data";
+import { medicalStaff, getSeedDiaryEntries } from "@/lib/medical";
 import { CalendarClient } from "@/components/calendario/CalendarClient";
 
 export default async function CalendarioPage({ params }: { params: Promise<{ clientId: string }> }) {
@@ -24,6 +25,7 @@ export default async function CalendarioPage({ params }: { params: Promise<{ cli
       templates={templates}
       exercises={exercises}
       seedAttendance={getSeedAttendance(clientId)}
+      seedTherapies={getSeedDiaryEntries(clientId, medicalStaff(client.staff))}
     />
   );
 }

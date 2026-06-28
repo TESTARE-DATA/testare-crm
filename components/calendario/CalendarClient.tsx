@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Athlete, CalendarEvent, DaySlot, SessionType, TemplateDomain, ExerciseDomain, WorkAssignment } from "@/lib/types";
+import type { Athlete, CalendarEvent, DaySlot, PhysioDiaryEntry, SessionType, TemplateDomain, ExerciseDomain, WorkAssignment } from "@/lib/types";
 import { SESSION_META, SESSION_TYPES } from "@/lib/sessions";
 import { TYPE_LOAD, dayLoad, mdCode, mdColor } from "@/lib/microcycle";
 import { objectiveMeta } from "@/lib/objectives";
 import { type AttendanceRec, type SessionEntry, assignmentToSession, eventToSession } from "@/lib/attendance";
 import { useLocalCollection, newId } from "@/lib/store";
+import { useDbCollection } from "@/lib/useDbCollection";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { AssignModal } from "@/components/programmazione/AssignButton";
@@ -14,6 +15,14 @@ import { AttendanceRecorder } from "@/components/attendance/AttendanceRecorder";
 
 type ExRef = { id: string; name: string; domain: ExerciseDomain; durationMin: number; category: string };
 type TplRef = { id: string; name: string; domain: TemplateDomain; durationMin: number; rpe: number; items: { exerciseId: string; name: string; durationMin?: number }[] };
+
+// "Altre attività" del giorno: lavoro individuale/di reparto sopra al piano squadra.
+type Other =
+  | { t: "event"; key: string; e: CalendarEvent }
+  | { t: "assignment"; key: string; a: WorkAssignment }
+  | { t: "therapy"; key: string; th: PhysioDiaryEntry; name: string };
+const THERAPY_COLOR = "var(--med)";
+const VISITA_COLOR = "#7c3aed";
 
 const DOW = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const TODAY = "2026-06-19";
@@ -34,6 +43,7 @@ export function CalendarClient({
   templates,
   exercises,
   seedAttendance,
+  seedTherapies,
 }: {
   clientId: string;
   seed: CalendarEvent[];
@@ -41,9 +51,11 @@ export function CalendarClient({
   templates: TplRef[];
   exercises: ExRef[];
   seedAttendance: AttendanceRec[];
+  seedTherapies: PhysioDiaryEntry[];
 }) {
   const { items: local, add, remove } = useLocalCollection<CalendarEvent>(`events:${clientId}`);
   const { items: assignments } = useLocalCollection<WorkAssignment>(`assignments:${clientId}`);
+  const { items: localTherapies } = useDbCollection<PhysioDiaryEntry>(`physio-diary:${clientId}`, seedTherapies);
   const [view, setView] = useState<"microciclo" | "mese">("microciclo");
   const [weekOffset, setWeekOffset] = useState(0);
   const [modalDate, setModalDate] = useState<string | null>(null);
@@ -51,10 +63,12 @@ export function CalendarClient({
   const [picker, setPicker] = useState<string | null>(null); // data per cui assegnare lavoro
 
   const allIds = useMemo(() => athletes.map((a) => a.id), [athletes]);
+  const athById = useMemo(() => new Map(athletes.map((a) => [a.id, a])), [athletes]);
   const events = useMemo(() => [...seed, ...local], [seed, local]);
   const localIds = new Set(local.map((e) => e.id));
   const matchDates = useMemo(() => events.filter((e) => e.sessionType === "partita").map((e) => e.date), [events]);
 
+  // Tutti gli eventi del giorno (per il modale "In programma").
   const eventsByDay = useMemo(() => {
     const m = new Map<string, CalendarEvent[]>();
     for (const e of events) {
@@ -65,14 +79,31 @@ export function CalendarClient({
     return m;
   }, [events]);
 
-  const assignmentsByDay = useMemo(() => {
-    const m = new Map<string, WorkAssignment[]>();
-    for (const a of assignments) {
-      if (!m.has(a.date)) m.set(a.date, []);
-      m.get(a.date)!.push(a);
+  // SQUADRA: solo le sedute di tutta la rosa.
+  const squadraByDay = useMemo(() => {
+    const m = new Map<string, CalendarEvent[]>();
+    for (const e of events) {
+      if (e.assignment !== "squadra") continue;
+      if (!m.has(e.date)) m.set(e.date, []);
+      m.get(e.date)!.push(e);
     }
+    for (const list of m.values()) list.sort((a, b) => (a.slot === b.slot ? 0 : a.slot === "mattina" ? -1 : 1));
     return m;
-  }, [assignments]);
+  }, [events]);
+
+  // ALTRE ATTIVITÀ: gruppo differenziato + lavori assegnati + terapie (Area Medica).
+  const therapies = useMemo(() => {
+    const seen = new Set(localTherapies.map((t) => t.id));
+    return [...localTherapies, ...seedTherapies.filter((t) => !seen.has(t.id))];
+  }, [localTherapies, seedTherapies]);
+  const otherByDay = useMemo(() => {
+    const m = new Map<string, Other[]>();
+    const push = (date: string, o: Other) => { if (!m.has(date)) m.set(date, []); m.get(date)!.push(o); };
+    for (const e of events) if (e.assignment === "gruppo") push(e.date, { t: "event", key: e.id, e });
+    for (const a of assignments) push(a.date, { t: "assignment", key: a.id, a });
+    for (const th of therapies) push(th.date, { t: "therapy", key: th.id, th, name: athById.get(th.athleteId)?.lastName ?? "Atleta" });
+    return m;
+  }, [events, assignments, therapies, athById]);
 
   const openEvent = (e: CalendarEvent) => setSelected(eventToSession(e, allIds));
   const openAssignment = (a: WorkAssignment) => setSelected(assignmentToSession(a));
@@ -105,12 +136,12 @@ export function CalendarClient({
 
       {view === "microciclo" ? (
         <Microciclo
-          clientId={clientId} weekOffset={weekOffset} setWeekOffset={setWeekOffset}
-          eventsByDay={eventsByDay} assignmentsByDay={assignmentsByDay} matchDates={matchDates}
-          onPick={setModalDate} onEvent={openEvent} onAssignment={openAssignment} onAssign={setPicker}
+          weekOffset={weekOffset} setWeekOffset={setWeekOffset}
+          squadraByDay={squadraByDay} otherByDay={otherByDay} matchDates={matchDates}
+          onEvent={openEvent} onAssignment={openAssignment} onAssign={setPicker}
         />
       ) : (
-        <Mese eventsByDay={eventsByDay} assignmentsByDay={assignmentsByDay} onPick={setModalDate} onEvent={openEvent} onAssignment={openAssignment} />
+        <Mese squadraByDay={squadraByDay} otherByDay={otherByDay} onPick={setModalDate} onEvent={openEvent} onAssignment={openAssignment} />
       )}
 
       {modalDate && (
@@ -133,18 +164,18 @@ export function CalendarClient({
 
 // ---- Vista MICROCICLO -------------------------------------------------------
 function Microciclo({
-  clientId, weekOffset, setWeekOffset, eventsByDay, assignmentsByDay, matchDates, onPick, onEvent, onAssignment, onAssign,
+  weekOffset, setWeekOffset, squadraByDay, otherByDay, matchDates, onEvent, onAssignment, onAssign,
 }: {
-  clientId: string; weekOffset: number; setWeekOffset: (n: number) => void;
-  eventsByDay: Map<string, CalendarEvent[]>; assignmentsByDay: Map<string, WorkAssignment[]>; matchDates: string[];
-  onPick: (d: string) => void; onEvent: (e: CalendarEvent) => void; onAssignment: (a: WorkAssignment) => void; onAssign: (d: string) => void;
+  weekOffset: number; setWeekOffset: (n: number) => void;
+  squadraByDay: Map<string, CalendarEvent[]>; otherByDay: Map<string, Other[]>; matchDates: string[];
+  onEvent: (e: CalendarEvent) => void; onAssignment: (a: WorkAssignment) => void; onAssign: (d: string) => void;
 }) {
   const monday = mondayOf(TODAY, weekOffset);
   const days = Array.from({ length: 7 }, (_, i) => toISO(new Date(monday.getTime() + i * DAY)));
-  const loads = days.map((d) => dayLoad(eventsByDay.get(d) ?? []));
+  const loads = days.map((d) => dayLoad(squadraByDay.get(d) ?? []));
   const weekLoad = loads.reduce((s, l) => s + l, 0);
   const maxLoad = Math.max(1, ...loads);
-  const sessions = days.reduce((s, d) => s + (eventsByDay.get(d)?.filter((e) => e.sessionType !== "riposo").length ?? 0), 0);
+  const sessions = days.reduce((s, d) => s + (squadraByDay.get(d)?.filter((e) => e.sessionType !== "riposo").length ?? 0), 0);
   const peakIdx = loads.indexOf(Math.max(...loads));
   const rangeLabel = `${fmtShort(days[0])} – ${fmtShort(days[6])}`;
 
@@ -167,7 +198,8 @@ function Microciclo({
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-7">
         {days.map((d, i) => {
-          const list = eventsByDay.get(d) ?? [];
+          const list = squadraByDay.get(d) ?? [];
+          const others = otherByDay.get(d) ?? [];
           const md = mdCode(d, matchDates);
           const isToday = d === TODAY;
           const load = loads[i];
@@ -189,13 +221,14 @@ function Microciclo({
                 <div className="mt-0.5 text-right text-[10px] text-muted-2">{load} AU</div>
               </div>
 
-              {/* slot */}
+              {/* SQUADRA */}
               <div className="flex-1 space-y-2 p-3">
+                <div className="text-[9px] font-bold uppercase tracking-wide text-muted-2">Squadra</div>
                 {(["mattina", "pomeriggio"] as DaySlot[]).map((slot) => {
                   const ev = list.filter((e) => e.slot === slot);
                   return (
                     <div key={slot}>
-                      <div className="mb-1 text-[9px] font-bold uppercase tracking-wide text-muted-2">{slot === "mattina" ? "AM" : "PM"}</div>
+                      <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-muted-2/70">{slot === "mattina" ? "AM" : "PM"}</div>
                       {ev.length === 0 ? (
                         <button onClick={() => onAssign(d)} className="w-full rounded-lg border border-dashed border-border py-1.5 text-[11px] font-medium text-muted-2 hover:border-[var(--brand-primary)] hover:text-foreground">+ Assegna</button>
                       ) : ev.map((e) => {
@@ -206,7 +239,7 @@ function Microciclo({
                               <span className="truncate text-[11px] font-semibold">{e.title}</span>
                               {e.time && <span className="text-[9px] opacity-80">{e.time}</span>}
                             </div>
-                            <div className="truncate text-[9px] opacity-85">{e.objective ?? meta.label}{e.assignment === "gruppo" ? ` · gr. ${e.groupAthleteIds?.length ?? 0}` : ""}</div>
+                            <div className="truncate text-[9px] opacity-85">{e.objective ?? meta.label}</div>
                           </button>
                         );
                       })}
@@ -214,19 +247,13 @@ function Microciclo({
                   );
                 })}
 
-                {/* Lavoro assegnato (compare cliccando "Assegna") */}
-                {(assignmentsByDay.get(d) ?? []).length > 0 && (
-                  <div>
-                    <div className="mb-1 text-[9px] font-bold uppercase tracking-wide text-muted-2">Assegnato</div>
-                    {(assignmentsByDay.get(d) ?? []).map((a) => {
-                      const meta = SESSION_META[a.sessionType ?? "campo"];
-                      return (
-                        <button key={a.id} onClick={() => onAssignment(a)} className="mb-1 block w-full rounded-lg border border-l-[3px] border-border bg-surface p-1.5 text-left transition-transform hover:scale-[1.02]" style={{ borderLeftColor: meta.color }}>
-                          <div className="truncate text-[11px] font-semibold text-foreground">{a.refName}</div>
-                          <div className="truncate text-[9px] text-muted">{a.objective ?? meta.label} · {a.athleteIds.length} atl.</div>
-                        </button>
-                      );
-                    })}
+                {/* ALTRE ATTIVITÀ: differenziato · lavori assegnati · terapie */}
+                {others.length > 0 && (
+                  <div className="border-t border-border pt-2">
+                    <div className="mb-1 text-[9px] font-bold uppercase tracking-wide text-muted-2">Altre attività</div>
+                    <div className="space-y-1">
+                      {others.map((o) => <OtherItem key={o.key} o={o} onEvent={onEvent} onAssignment={onAssignment} />)}
+                    </div>
                   </div>
                 )}
               </div>
@@ -243,7 +270,7 @@ function Microciclo({
 }
 
 // ---- Vista MESE -------------------------------------------------------------
-function Mese({ eventsByDay, assignmentsByDay, onPick, onEvent, onAssignment }: { eventsByDay: Map<string, CalendarEvent[]>; assignmentsByDay: Map<string, WorkAssignment[]>; onPick: (d: string) => void; onEvent: (e: CalendarEvent) => void; onAssignment: (a: WorkAssignment) => void }) {
+function Mese({ squadraByDay, otherByDay, onPick, onEvent, onAssignment }: { squadraByDay: Map<string, CalendarEvent[]>; otherByDay: Map<string, Other[]>; onPick: (d: string) => void; onEvent: (e: CalendarEvent) => void; onAssignment: (a: WorkAssignment) => void }) {
   const start = mondayOf(TODAY, 0);
   const days = Array.from({ length: 35 }, (_, i) => toISO(new Date(start.getTime() + i * DAY)));
   return (
@@ -253,7 +280,8 @@ function Mese({ eventsByDay, assignmentsByDay, onPick, onEvent, onAssignment }: 
       </div>
       <div className="grid grid-cols-7">
         {days.map((day) => {
-          const list = eventsByDay.get(day) ?? [];
+          const list = squadraByDay.get(day) ?? [];
+          const others = otherByDay.get(day) ?? [];
           const isToday = day === TODAY;
           return (
             <button key={day} onClick={() => onPick(day)} className="group min-h-28 border-b border-r border-border p-1.5 text-left align-top last:border-r-0 hover:bg-background">
@@ -270,18 +298,58 @@ function Mese({ eventsByDay, assignmentsByDay, onPick, onEvent, onAssignment }: 
                     </span>
                   );
                 })}
-                {(assignmentsByDay.get(day) ?? []).map((a) => {
-                  const meta = SESSION_META[a.sessionType ?? "campo"];
-                  return (
-                    <span key={a.id} onClick={(ev) => { ev.stopPropagation(); onAssignment(a); }} className="flex cursor-pointer items-center gap-1 rounded border border-l-[3px] border-border bg-surface px-1.5 py-0.5 text-[11px] font-medium" style={{ borderLeftColor: meta.color }} title={`${a.refName} · assegnato`}>
-                      <span className="truncate">{a.refName}</span>
-                    </span>
-                  );
-                })}
+                {others.map((o) => <MeseOther key={o.key} o={o} onEvent={onEvent} onAssignment={onAssignment} />)}
               </div>
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// Chip compatto delle "altre attività" nella vista Mese.
+function MeseOther({ o, onEvent, onAssignment }: { o: Other; onEvent: (e: CalendarEvent) => void; onAssignment: (a: WorkAssignment) => void }) {
+  if (o.t === "event") {
+    const meta = SESSION_META[o.e.sessionType];
+    return <span onClick={(ev) => { ev.stopPropagation(); onEvent(o.e); }} className="flex cursor-pointer items-center gap-1 rounded border border-l-[3px] border-border bg-surface px-1.5 py-0.5 text-[11px] font-medium" style={{ borderLeftColor: meta.color }} title={`${o.e.title} · differenziato`}><span className="truncate">{o.e.title}</span></span>;
+  }
+  if (o.t === "assignment") {
+    const meta = SESSION_META[o.a.sessionType ?? "campo"];
+    return <span onClick={(ev) => { ev.stopPropagation(); onAssignment(o.a); }} className="flex cursor-pointer items-center gap-1 rounded border border-l-[3px] border-border bg-surface px-1.5 py-0.5 text-[11px] font-medium" style={{ borderLeftColor: meta.color }} title={`${o.a.refName} · assegnato`}><span className="truncate">{o.a.refName}</span></span>;
+  }
+  const color = o.th.kind === "visita" ? VISITA_COLOR : THERAPY_COLOR;
+  return <span className="flex items-center gap-1 rounded border border-l-[3px] border-border bg-surface px-1.5 py-0.5 text-[11px] font-medium" style={{ borderLeftColor: color }} title={`${o.name} · ${o.th.treatment}`}><Icon name="medical" size={10} style={{ color }} /><span className="truncate">{o.name}</span></span>;
+}
+
+// Riga "altra attività" nella vista Microciclo (differenziato · assegnato · terapia).
+function OtherItem({ o, onEvent, onAssignment }: { o: Other; onEvent: (e: CalendarEvent) => void; onAssignment: (a: WorkAssignment) => void }) {
+  if (o.t === "event") {
+    const meta = SESSION_META[o.e.sessionType];
+    return (
+      <button onClick={() => onEvent(o.e)} className="block w-full rounded-lg border border-l-[3px] border-border bg-surface p-1.5 text-left transition-transform hover:scale-[1.02]" style={{ borderLeftColor: meta.color }}>
+        <div className="truncate text-[11px] font-semibold text-foreground">{o.e.title}</div>
+        <div className="truncate text-[9px] text-muted">Differenziato · {o.e.groupAthleteIds?.length ?? 0} atl.</div>
+      </button>
+    );
+  }
+  if (o.t === "assignment") {
+    const meta = SESSION_META[o.a.sessionType ?? "campo"];
+    return (
+      <button onClick={() => onAssignment(o.a)} className="block w-full rounded-lg border border-l-[3px] border-border bg-surface p-1.5 text-left transition-transform hover:scale-[1.02]" style={{ borderLeftColor: meta.color }}>
+        <div className="truncate text-[11px] font-semibold text-foreground">{o.a.refName}</div>
+        <div className="truncate text-[9px] text-muted">{o.a.objective ?? meta.label} · {o.a.athleteIds.length} atl.</div>
+      </button>
+    );
+  }
+  const isVisita = o.th.kind === "visita";
+  const color = isVisita ? VISITA_COLOR : THERAPY_COLOR;
+  return (
+    <div className="flex items-start gap-1.5 rounded-lg border border-l-[3px] border-border bg-surface p-1.5" style={{ borderLeftColor: color }} title={`${o.name} · ${o.th.treatment}`}>
+      <Icon name="medical" size={11} className="mt-0.5 shrink-0" style={{ color }} />
+      <div className="min-w-0">
+        <div className="truncate text-[11px] font-semibold text-foreground">{o.name}</div>
+        <div className="truncate text-[9px]" style={{ color }}>{isVisita ? "Visita" : "Terapia"} · {o.th.treatment}</div>
       </div>
     </div>
   );

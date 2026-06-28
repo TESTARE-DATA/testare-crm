@@ -4,7 +4,7 @@
 // server + aggiunte utente in localStorage. Sostituibile con un DB.
 // ============================================================================
 
-import type { MedicalIntake, RehabItem, RehabTemplate, StaffMember } from "./types";
+import type { MedicalIntake, PhysioDiaryEntry, RehabItem, RehabTemplate, StaffMember } from "./types";
 import { CLIENTS } from "./clients";
 import { getMedical } from "./data";
 
@@ -63,6 +63,44 @@ export function getSeedIntakes(clientId: string, physioName?: string, physioRole
       assignedRole: physioRole,
       updatedAt: m.date,
     }));
+}
+
+const DIARY_TREATMENTS = [
+  "Tecarterapia + crioterapia",
+  "Terapia manuale + mobilità articolare",
+  "Isometria + propriocezione",
+  "Laserterapia + esercizi rieducativi",
+];
+const addDaysISO = (iso: string, d: number) => { const dt = new Date(iso + "T00:00:00Z"); dt.setUTCDate(dt.getUTCDate() + d); return dt.toISOString().slice(0, 10); };
+
+/** Sedute terapiche seed deterministiche per gli episodi attivi: alimentano il
+ *  Diario riabilitativo e la sezione "Altre attività" del Calendario. */
+export function getSeedDiaryEntries(clientId: string, staff: StaffMember[]): PhysioDiaryEntry[] {
+  const physio = staff.find((s) => s.role.toLowerCase().includes("fisio")) ?? staff[0];
+  const active = getMedical(clientId).filter((m) => m.phase !== "conclusa");
+  const out: PhysioDiaryEntry[] = [];
+  active.forEach((m, mi) => {
+    for (let k = 0; k < 2; k++) {
+      const painPost = Math.max(0, 5 - k * 2 - (mi % 2));
+      out.push({
+        id: `${clientId}-diary-seed-${m.id}-${k}`,
+        clientId,
+        athleteId: m.athleteId,
+        date: addDaysISO(m.date, 2 + k * 4),
+        area: m.bodyPart,
+        treatment: DIARY_TREATMENTS[(mi + k) % DIARY_TREATMENTS.length],
+        durationMin: 25 + ((mi + k) % 3) * 10,
+        painPre: Math.min(10, painPost + 2),
+        painPost,
+        funcPre: Math.min(10, 4 + k * 2),
+        funcPost: Math.min(10, 6 + k * 2),
+        notes: k === 0 ? "Fase iniziale, buona tolleranza." : "Progressione del carico.",
+        author: physio?.name,
+        authorArea: physio ? areaOfRole(physio.role) : undefined,
+      });
+    }
+  });
+  return out;
 }
 
 /** Mappa il ruolo dello staff a un'area di appartenenza (Performance, Fisioterapia…). */
