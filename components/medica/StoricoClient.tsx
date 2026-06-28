@@ -73,6 +73,24 @@ export function StoricoClient({ clientId, seedAthletes, seedMedical }: { clientI
   const giorni = records.reduce((s, r) => s + r.days, 0);
   const rientroMedio = records.length ? round(giorni / records.length) : 0;
   const recidive = records.filter((r) => r.recidiva).length;
+  const recidivaPct = records.length ? Math.round((recidive / records.length) * 100) : 0;
+
+  // Indici di sorveglianza (IOC/FIFA, Bahr 2020). Esposizione approssimata in
+  // ATLETA-GIORNI (rosa × giorni di stagione osservati): l'incidenza per 1000
+  // ORE arriverà agganciando l'esposizione reale (allenamenti+gare).
+  const surveillance = useMemo(() => {
+    if (!activeSeason || records.length === 0) return null;
+    const y0 = +activeSeason.slice(0, 4);
+    const startMs = Date.parse(`${y0}-07-01T00:00:00`);
+    const endMs = Math.min(Date.parse(`${y0 + 1}-06-30T00:00:00`), Date.now());
+    const winDays = Math.max(1, Math.round((endMs - startMs) / 86400000));
+    const exposure = Math.max(1, athletes.length * winDays); // atleta-giorni
+    return {
+      disponibilita: Math.max(0, Math.min(100, Math.round((1 - giorni / exposure) * 100))),
+      burden: round((giorni / exposure) * 1000),
+      incidenza: round((records.length / exposure) * 1000),
+    };
+  }, [activeSeason, records.length, giorni, athletes.length]);
 
   // Anima le barre alla prima comparsa; al cambio stagione transizionano da sole.
   const [mounted, setMounted] = useState(false);
@@ -192,6 +210,20 @@ export function StoricoClient({ clientId, seedAthletes, seedMedical }: { clientI
         </div>
       )}
 
+      {surveillance && (
+        <Panel title="Indici di sorveglianza" className="mb-6" action={<span className="text-[12px] text-muted">consenso IOC/FIFA · su episodi conclusi</span>}>
+          <div className="grid grid-cols-2 gap-px bg-[var(--border)] md:grid-cols-4">
+            <SurvStat label="Disponibilità" value={`${surveillance.disponibilita}%`} hint="giorni-atleta disponibili" tone={surveillance.disponibilita >= 90 ? "good" : surveillance.disponibilita >= 80 ? "warn" : "bad"} />
+            <SurvStat label="Burden" value={surveillance.burden} hint="gg persi / 1000 atleta-giorni" />
+            <SurvStat label="Incidenza" value={surveillance.incidenza} hint="episodi / 1000 atleta-giorni" />
+            <SurvStat label="Tasso recidive" value={`${recidivaPct}%`} hint={`${recidive} su ${records.length}`} tone={recidivaPct > 0 ? "warn" : "default"} />
+          </div>
+          <p className="border-t border-border px-4 py-3 text-[11px] text-muted-2">
+            Esposizione stimata in <b>atleta-giorni</b> (rosa × giorni di stagione). La <b>disponibilità</b> è uno dei migliori predittori di risultato (Hägglund). L&apos;incidenza per 1000 <b>ore</b> arriverà agganciando l&apos;esposizione reale (allenamenti+gare) da Registro/Carico.
+          </p>
+        </Panel>
+      )}
+
       {records.length === 0 ? (
         <div className="card py-16 text-center text-sm text-muted">Nessun infortunio concluso in questa stagione.</div>
       ) : (
@@ -217,6 +249,17 @@ export function StoricoClient({ clientId, seedAthletes, seedMedical }: { clientI
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function SurvStat({ label, value, hint, tone }: { label: string; value: string | number; hint: string; tone?: "good" | "warn" | "bad" | "default" }) {
+  const color = tone === "good" ? "var(--good)" : tone === "warn" ? "var(--warn)" : tone === "bad" ? "var(--bad)" : "var(--foreground)";
+  return (
+    <div className="bg-surface px-4 py-3.5">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-2">{label}</div>
+      <div className="mt-0.5 text-2xl font-extrabold tnum" style={{ color }}>{value}</div>
+      <div className="mt-0.5 text-[11px] text-muted-2">{hint}</div>
     </div>
   );
 }
