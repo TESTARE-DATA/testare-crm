@@ -10,6 +10,7 @@ import { useRoster } from "@/lib/useRoster";
 import { useAthleteEdits } from "@/lib/useAthleteEdits";
 import { usePhotos } from "@/lib/usePhotos";
 import { readinessTier } from "@/lib/readiness-core";
+import { statusForPhase } from "@/lib/medical-flow";
 import { extractDateFromDataUrl } from "@/lib/fileDate";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
@@ -47,9 +48,6 @@ export function AreaMedicaClient({ clientId, seed, athletes: seedAthletes, readi
   const [open, setOpen] = useState(false);
 
   const localAthIds = new Set(localAthletes.map((a) => a.id));
-  // Stato atleta derivato dalla fase della cartella (collega Area Medica → Rosa).
-  const statusForPhase = (phase: InjuryPhase): Athlete["status"] =>
-    phase === "conclusa" ? "disponibile" : phase === "riatletizzazione" || phase === "return to play" ? "in recupero" : "infortunato";
 
   function addRecord(m: MedicalRecord) {
     add(m);

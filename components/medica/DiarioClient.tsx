@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Athlete, DiaryEntryKind, MedicalClosure, MedicalIntake, MedicalRecord, PhysioDiaryEntry, PromEntry, RehabItem, RtpAssessment, RtpGate, StaffMember } from "@/lib/types";
+import type { Athlete, DiaryEntryKind, InjuryPhase, MedicalClosure, MedicalIntake, MedicalRecord, PhysioDiaryEntry, PromEntry, RehabItem, RtpAssessment, RtpGate, StaffMember } from "@/lib/types";
+import { statusForPhase } from "@/lib/medical-flow";
 import { newId } from "@/lib/store";
 import { useDbCollection } from "@/lib/useDbCollection";
 import { useRoster } from "@/lib/useRoster";
@@ -35,6 +36,10 @@ const RTP_GATES_DEFAULT: { key: string; label: string; target: string }[] = [
   { key: "medical", label: "Via libera medica", target: "sì" },
 ];
 const defaultGates = (): RtpGate[] => RTP_GATES_DEFAULT.map((g) => ({ ...g, met: false }));
+
+// Fasi avanzabili nel diario (la conclusione avviene con "Chiudi percorso").
+const REHAB_PHASES: InjuryPhase[] = ["acuta", "subacuta", "riatletizzazione", "return to play"];
+type PhaseOverride = { id: string; clientId: string; phase: InjuryPhase; updatedAt: string };
 // Griglia condivisa header/righe della tabella "Trattamenti svolti" (colonne allineate).
 const DIARY_COLS = "grid grid-cols-[3.25rem_minmax(0,1fr)_5.5rem_5.5rem_3rem_1.25rem] gap-3";
 
@@ -50,11 +55,25 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
   const { items: localIntakes } = useDbCollection<MedicalIntake>(`intake:${clientId}`, initialIntakes);
   const { items: closures, add: addClosure } = useDbCollection<MedicalClosure>(`medical-closed:${clientId}`, initialClosures);
   const { items: rtpItems, add: addRtp, update: updateRtp } = useDbCollection<RtpAssessment>(`rtp:${clientId}`);
+  const { items: phaseOv, add: addPhase, update: updatePhase } = useDbCollection<PhaseOverride>(`medical-phase:${clientId}`);
 
   function saveRtp(recordId: string, gates: RtpGate[]) {
     const now = new Date().toISOString();
     if (rtpItems.some((x) => x.id === recordId)) updateRtp(recordId, { gates, updatedAt: now });
     else addRtp({ id: recordId, clientId, gates, updatedAt: now });
+  }
+
+  // Fase EFFETTIVA del caso (override utente sopra la fase del record).
+  const effPhase = (m: MedicalRecord): InjuryPhase => phaseOv.find((p) => p.id === m.id)?.phase ?? m.phase;
+
+  /** Avanza/cambia la fase riabilitativa e sincronizza lo stato in rosa. */
+  function changePhase(m: MedicalRecord, a: Athlete, phase: InjuryPhase) {
+    const now = new Date().toISOString();
+    if (phaseOv.some((p) => p.id === m.id)) updatePhase(m.id, { phase, updatedAt: now });
+    else addPhase({ id: m.id, clientId, phase, updatedAt: now });
+    const s = statusForPhase(phase);
+    if (localAthletes.some((x) => x.id === a.id)) updateAthlete(a.id, { status: s });
+    else setOverride(a.id, { status: s });
   }
 
   const [openAthlete, setOpenAthlete] = useState<string | null>(null);
@@ -111,7 +130,12 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
               <div className="text-[13px] text-muted">{m.injury} · {m.bodyPart}</div>
               <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
                 <span className="inline-flex items-center gap-1 rounded-full med-soft-bg med-accent px-2 py-0.5 font-semibold"><Icon name="users" size={11} /> {selected.intake?.assignedTo ?? "—"}</span>
-                <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 capitalize text-muted">{m.phase}</span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-border py-0.5 pl-2 pr-1 text-muted">
+                  Fase:
+                  <select value={effPhase(m)} onChange={(e) => changePhase(m, a, e.target.value as InjuryPhase)} className="cursor-pointer rounded-md bg-transparent font-semibold capitalize text-foreground outline-none hover:bg-background">
+                    {REHAB_PHASES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </span>
                 <span className="text-muted-2">{selected.entries.length} sedute</span>
               </div>
             </div>

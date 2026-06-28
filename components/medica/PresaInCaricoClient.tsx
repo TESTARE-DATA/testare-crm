@@ -9,7 +9,7 @@ import { useDbCollection } from "@/lib/useDbCollection";
 import { useRoster } from "@/lib/useRoster";
 import { useAthleteEdits } from "@/lib/useAthleteEdits";
 import { usePhotos } from "@/lib/usePhotos";
-import { caseStage } from "@/lib/medical-flow";
+import { caseStage, statusForPhase } from "@/lib/medical-flow";
 import { OSICS, osicsValue } from "@/lib/osics";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
@@ -55,10 +55,18 @@ export function PresaInCaricoClient({ clientId, seedAthletes, seedMedical, seedI
   const activeAthleteIds = useMemo(() => new Set([...seedMedical, ...localMedical].filter((m) => m.phase !== "conclusa" && !closedIds.has(m.id)).map((m) => m.athleteId)), [seedMedical, localMedical, closedIds]);
   const selectable = athletes.filter((a) => !activeAthleteIds.has(a.id));
 
-  function save(recordId: string, values: IntakeValues) {
+  function save(entry: { record: MedicalRecord; athlete: Athlete }, values: IntakeValues) {
     const now = new Date().toISOString();
+    const recordId = entry.record.id;
     if (intakeMap.has(recordId)) updateIntake(recordId, { ...values, updatedAt: now });
     else addIntake({ id: recordId, clientId, ...values, updatedAt: now });
+    // Affidato a un professionista → il caso entra in riabilitazione: sincronizza
+    // lo stato in rosa con la fase (così non resta "in valutazione").
+    if (values.assignedTo) {
+      const s = statusForPhase(entry.record.phase);
+      if (localAthIds.has(entry.athlete.id)) updateAthlete(entry.athlete.id, { status: s });
+      else setOverride(entry.athlete.id, { status: s });
+    }
   }
 
   /** Prende in carico un atleta della rosa: crea la cartella e ne aggiorna lo stato. */
@@ -136,7 +144,7 @@ export function PresaInCaricoClient({ clientId, seedAthletes, seedMedical, seedI
         </div>
       )}
 
-      {editing && <IntakeModal entry={editing} staff={staff} onClose={() => setEditing(null)} onSave={(v) => save(editing.record.id, v)} />}
+      {editing && <IntakeModal entry={editing} staff={staff} onClose={() => setEditing(null)} onSave={(v) => save(editing, v)} />}
       {picking && <AthletePicker athletes={selectable} photos={photos} title="Prendi in carico" subtitle="Seleziona un atleta dalla rosa" onPick={(a) => { setPicked(a); setPicking(false); }} onClose={() => setPicking(false)} />}
       {picked && <SendToMedicalModal athlete={picked} photoUrl={photos[picked.id]} onClose={() => setPicked(null)} onSubmit={(draft) => takeInCharge(picked, draft)} />}
     </div>
