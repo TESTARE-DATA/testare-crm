@@ -18,13 +18,22 @@ export interface NavGroup {
   children: NavLeaf[];
 }
 
-export type NavItem = NavLeaf | NavGroup;
+/** Intestazione di macro-dominio nel menu (solo etichetta, non navigabile). */
+export interface NavHeader {
+  header: string;
+}
+
+export type NavItem = NavLeaf | NavGroup | NavHeader;
 
 export function isGroup(item: NavItem): item is NavGroup {
   return (item as NavGroup).children !== undefined;
 }
+export function isHeader(item: NavItem): item is NavHeader {
+  return (item as NavHeader).header !== undefined;
+}
 
 export const NAV: NavItem[] = [
+  { header: "Squadra" },
   { slug: "", label: "Panoramica", icon: "home", description: "Riepilogo del cliente" },
   { slug: "campionato", label: "Campionato", icon: "trophy", description: "Classifica e risultati live" },
   { slug: "rosa", label: "Rosa", icon: "users", description: "Atleti, anagrafica e KPI" },
@@ -93,7 +102,7 @@ export const NAV: NavItem[] = [
 
 /** Tutte le foglie navigabili (utile per panoramica/scorciatoie). */
 export const SECTION_LEAVES: NavLeaf[] = NAV.flatMap((i) =>
-  isGroup(i) ? i.children : i.slug === "" ? [] : [i],
+  isHeader(i) ? [] : isGroup(i) ? i.children : i.slug === "" ? [] : [i],
 );
 
 export function sectionHref(clientId: string, slug: string): string {

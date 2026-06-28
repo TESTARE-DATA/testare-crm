@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CLIENTS } from "@/lib/clients";
-import { NAV, isGroup, sectionHref, type NavLeaf } from "@/lib/nav";
+import { NAV, isGroup, isHeader, sectionHref, type NavLeaf } from "@/lib/nav";
 import { isLeagueSupported } from "@/lib/leagues";
 import { BrandScope } from "./BrandScope";
 import { Icon } from "./Icon";
@@ -71,7 +71,10 @@ function ClientNav({ clientId, pathname }: { clientId: string; pathname: string 
       </div>
 
       <BrandScope colors={client.colors}>
-        {NAV.filter((item) => isGroup(item) || item.slug !== "campionato" || isLeagueSupported(clientId)).map((item) => {
+        {NAV.filter((item) => isHeader(item) || isGroup(item) || item.slug !== "campionato" || isLeagueSupported(clientId)).map((item) => {
+          if (isHeader(item)) {
+            return <SectionLabel key={item.header}>{item.header}</SectionLabel>;
+          }
           if (isGroup(item)) {
             return (
               <div key={item.group} className="mt-3">
