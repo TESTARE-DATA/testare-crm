@@ -81,13 +81,27 @@ export function EserciziClient({ clientId, seed, domain, athletes, defaultDate }
             <Badge tone="brand">{e.category}</Badge>
             <p className="mt-2 flex-1 text-[13px] leading-snug text-muted">{e.description}</p>
 
-            {e.drill && (
-              <div className="brand-soft-bg mt-3 grid grid-cols-3 gap-2 rounded-xl p-2 text-center text-[11px]">
-                <DrillStat v={`${e.drill.pitchLengthM}×${e.drill.pitchWidthM}`} l="metri" />
-                <DrillStat v={`${e.drill.playersPerTeam}v${e.drill.playersPerTeam}`} l={e.drill.goalkeepers ? "+ P" : "no P"} />
-                <DrillStat v={`${e.drill.densityM2}m²`} l="densità" />
-              </div>
-            )}
+            {e.drill && (() => {
+              const d = e.drill;
+              const b = d.playersB ?? d.playersPerTeam;
+              const nvn = `${d.playersPerTeam}v${b}${d.jollyCount ? `+${d.jollyCount}` : ""}${d.goalkeepers ? "+P" : ""}`;
+              return (
+                <div className="brand-soft-bg mt-3 rounded-xl p-2 text-[11px]">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <DrillStat v={`${d.pitchLengthM}×${d.pitchWidthM}`} l="metri" />
+                    <DrillStat v={nvn} l={d.playersPerTeam !== b ? "⚡ superiorità" : "in parità"} />
+                    <DrillStat v={`${d.densityM2}m²`} l="densità" />
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 border-t border-[color-mix(in_srgb,var(--brand-primary)_18%,transparent)] pt-1.5 text-[10.5px] text-muted">
+                    <span>int. <b className="text-foreground">{d.intensity}</b></span>
+                    <span>· {d.series}×{d.reps}</span>
+                    <span>· rec {d.recoverySec}″</span>
+                    {d.rules.length > 0 && <span>· {d.rules.length} regole</span>}
+                    {d.variants.length > 0 && <span>· {d.variants.length} varianti</span>}
+                  </div>
+                </div>
+              );
+            })()}
 
             {e.muscleGroups && e.muscleGroups.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">

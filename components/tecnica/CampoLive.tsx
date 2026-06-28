@@ -466,10 +466,14 @@ function ColorRow({ label, value, onChange }: { label: string; value: string; on
   return (
     <div className="mb-2 flex items-center gap-2">
       <span className="w-20 text-sm font-medium">{label}</span>
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         {SWATCHES.map((c) => (
-          <button key={c} onClick={() => onChange(c)} className={`h-5 w-5 rounded-full ring-1 ring-border transition-transform ${value === c ? "scale-110 ring-2 ring-foreground" : ""}`} style={{ backgroundColor: c }} aria-label={c} />
+          <button key={c} onClick={() => onChange(c)} className={`h-5 w-5 rounded-full ring-1 ring-border transition-transform ${value.toLowerCase() === c.toLowerCase() ? "scale-110 ring-2 ring-foreground" : ""}`} style={{ backgroundColor: c }} aria-label={c} />
         ))}
+        <label className="relative h-5 w-5 cursor-pointer overflow-hidden rounded-full ring-1 ring-border" title="Colore personalizzato">
+          <span className="absolute inset-0" style={{ background: "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)" }} />
+          <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
+        </label>
       </div>
     </div>
   );
