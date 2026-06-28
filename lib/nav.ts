@@ -28,9 +28,9 @@ export const NAV: NavItem[] = [
   { slug: "", label: "Panoramica", icon: "home", description: "Riepilogo del cliente" },
   { slug: "campionato", label: "Campionato", icon: "trophy", description: "Classifica e risultati live" },
   { slug: "rosa", label: "Rosa", icon: "users", description: "Atleti, anagrafica e KPI" },
-  { slug: "readiness", label: "Readiness", icon: "trend", description: "Prontezza da questionario di benessere" },
   { slug: "calendario", label: "Calendario", icon: "calendar", description: "30 giorni · sedute ed eventi" },
   { slug: "programmazione", label: "Piano di Allenamento", icon: "target", description: "Periodizzazione: macrociclo, mesocicli, microcicli e monitoraggio" },
+  { slug: "readiness", label: "Readiness", icon: "trend", description: "Prontezza da questionario di benessere" },
   {
     group: "Registro Attività",
     slug: "registro-attivita",
