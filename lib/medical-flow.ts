@@ -23,3 +23,16 @@ export function statusForPhase(phase: InjuryPhase): Athlete["status"] {
   if (phase === "riatletizzazione" || phase === "return to play") return "in recupero";
   return "infortunato"; // acuta / subacuta
 }
+
+/** Override di fase (avanzamento manuale dal Diario), per id di cartella. */
+export interface MedicalPhaseOverride {
+  id: string; // = id MedicalRecord
+  clientId: string;
+  phase: InjuryPhase;
+  updatedAt: string; // ISO
+}
+
+/** Fase EFFETTIVA del caso: override utente sopra la fase del record seed. */
+export function effectivePhase(rec: MedicalRecord, overrides: { id: string; phase: InjuryPhase }[]): InjuryPhase {
+  return overrides.find((o) => o.id === rec.id)?.phase ?? rec.phase;
+}

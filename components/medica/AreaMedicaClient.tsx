@@ -10,7 +10,7 @@ import { useRoster } from "@/lib/useRoster";
 import { useAthleteEdits } from "@/lib/useAthleteEdits";
 import { usePhotos } from "@/lib/usePhotos";
 import { readinessTier } from "@/lib/readiness-core";
-import { statusForPhase } from "@/lib/medical-flow";
+import { statusForPhase, effectivePhase, type MedicalPhaseOverride } from "@/lib/medical-flow";
 import { extractDateFromDataUrl } from "@/lib/fileDate";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
@@ -43,6 +43,7 @@ export function AreaMedicaClient({ clientId, seed, athletes: seedAthletes, readi
   const { items: local, add, remove } = useDbCollection<MedicalRecord>(`medical:${clientId}`);
   const { items: localAthletes, update: updateAthlete } = useDbCollection<Athlete>(`athletes:${clientId}`);
   const { items: closures } = useDbCollection<MedicalClosure>(`medical-closed:${clientId}`);
+  const { items: phaseOv } = useDbCollection<MedicalPhaseOverride>(`medical-phase:${clientId}`);
   const { setOverride } = useAthleteEdits(clientId);
   const [view, setView] = useState<"cartelle" | "fase">("cartelle");
   // Ricorda la vista scelta (Cartelle/Per fase): così un re-render/rimontaggio
@@ -64,7 +65,9 @@ export function AreaMedicaClient({ clientId, seed, athletes: seedAthletes, readi
     else setOverride(m.athleteId, { status: s });
   }
 
-  const all = [...seed, ...local];
+  // Applica la fase EFFETTIVA (override dal Diario) così l'Overview è coerente
+  // con lo stato in rosa e con la fase mostrata nel Diario.
+  const all = [...seed, ...local].map((m) => ({ ...m, phase: effectivePhase(m, phaseOv) }));
   const localIds = new Set(local.map((m) => m.id));
   const closedIds = new Set(closures.map((c) => c.id));
   const activeByAthlete = new Map<string, MedicalRecord>();

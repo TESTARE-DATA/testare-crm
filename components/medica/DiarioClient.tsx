@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Athlete, DiaryEntryKind, InjuryPhase, MedicalClosure, MedicalIntake, MedicalRecord, PhysioDiaryEntry, PromEntry, RehabItem, RtpAssessment, RtpGate, StaffMember } from "@/lib/types";
-import { statusForPhase } from "@/lib/medical-flow";
+import { statusForPhase, effectivePhase, type MedicalPhaseOverride } from "@/lib/medical-flow";
 import { newId } from "@/lib/store";
 import { useDbCollection } from "@/lib/useDbCollection";
 import { useRoster } from "@/lib/useRoster";
@@ -39,7 +39,6 @@ const defaultGates = (): RtpGate[] => RTP_GATES_DEFAULT.map((g) => ({ ...g, met:
 
 // Fasi avanzabili nel diario (la conclusione avviene con "Chiudi percorso").
 const REHAB_PHASES: InjuryPhase[] = ["acuta", "subacuta", "riatletizzazione", "return to play"];
-type PhaseOverride = { id: string; clientId: string; phase: InjuryPhase; updatedAt: string };
 // Griglia condivisa header/righe della tabella "Trattamenti svolti" (colonne allineate).
 const DIARY_COLS = "grid grid-cols-[3.25rem_minmax(0,1fr)_5.5rem_5.5rem_3rem_1.25rem] gap-3";
 
@@ -55,7 +54,7 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
   const { items: localIntakes } = useDbCollection<MedicalIntake>(`intake:${clientId}`, initialIntakes);
   const { items: closures, add: addClosure } = useDbCollection<MedicalClosure>(`medical-closed:${clientId}`, initialClosures);
   const { items: rtpItems, add: addRtp, update: updateRtp } = useDbCollection<RtpAssessment>(`rtp:${clientId}`);
-  const { items: phaseOv, add: addPhase, update: updatePhase } = useDbCollection<PhaseOverride>(`medical-phase:${clientId}`);
+  const { items: phaseOv, add: addPhase, update: updatePhase } = useDbCollection<MedicalPhaseOverride>(`medical-phase:${clientId}`);
 
   function saveRtp(recordId: string, gates: RtpGate[]) {
     const now = new Date().toISOString();
@@ -64,7 +63,7 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
   }
 
   // Fase EFFETTIVA del caso (override utente sopra la fase del record).
-  const effPhase = (m: MedicalRecord): InjuryPhase => phaseOv.find((p) => p.id === m.id)?.phase ?? m.phase;
+  const effPhase = (m: MedicalRecord): InjuryPhase => effectivePhase(m, phaseOv);
 
   /** Avanza/cambia la fase riabilitativa e sincronizza lo stato in rosa. */
   function changePhase(m: MedicalRecord, a: Athlete, phase: InjuryPhase) {
