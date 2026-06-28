@@ -34,11 +34,14 @@ export function IntakeScheda({ intake, record, compact }: { intake?: MedicalInta
   return (
     <div className="space-y-3">
       {/* Inquadramento */}
-      {(dataInf || mecc || grav) && (
+      {(dataInf || mecc || grav || i.tessuto || i.meccanismoTipo || i.classificazione) && (
         <div className="flex flex-wrap items-center gap-2 text-[12px]">
           {dataInf && <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-muted"><Icon name="calendar" size={11} /> {fmt(dataInf)}</span>}
           {mecc && <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-muted">{mecc}</span>}
           {grav && <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize" style={{ color: SEV_COLOR[grav], backgroundColor: `color-mix(in srgb, ${SEV_COLOR[grav]} 12%, transparent)` }}>{grav}</span>}
+          {i.tessuto && <span className="rounded-full border border-border px-2 py-0.5 capitalize text-muted">{i.tessuto}</span>}
+          {i.meccanismoTipo && <span className="rounded-full border border-border px-2 py-0.5 text-muted">{i.meccanismoTipo}</span>}
+          {i.classificazione && <span className="med-soft-bg med-accent rounded-full px-2 py-0.5 font-semibold">{i.classificazione}</span>}
         </div>
       )}
 

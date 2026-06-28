@@ -261,6 +261,11 @@ export type MedicalType = "infortunio" | "sovraccarico" | "malattia" | "controll
 
 export type InjurySeverity = "lieve" | "moderato" | "grave";
 
+/** Tipo di tessuto coinvolto — codifica standard per epidemiologia. */
+export type TissueType = "muscolare" | "tendineo" | "legamentoso" | "osseo" | "articolare" | "altro";
+/** Meccanismo lesionale (consenso surveillance: contatto vs non-contatto, overuse). */
+export type InjuryMechanism = "non-contatto" | "contatto" | "overuse" | "indiretto";
+
 export interface MedicalRecord {
   id: string;
   clientId: string;
@@ -297,6 +302,10 @@ export interface MedicalIntake {
   dataInfortunio?: string; // ISO
   meccanismo?: string;
   gravita?: InjurySeverity;
+  // --- Codifica standard (per coerenza ed epidemiologia) ---
+  tessuto?: TissueType; // tipo di tessuto coinvolto
+  meccanismoTipo?: InjuryMechanism; // contatto/non-contatto/overuse
+  classificazione?: string; // grado/codice (es. "BAMIC 2b", "OSICS …")
   // --- Valutazione ---
   anamnesi?: string;
   esameObiettivo?: string;

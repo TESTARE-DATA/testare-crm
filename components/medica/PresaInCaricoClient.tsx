@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { Athlete, InjurySeverity, MedicalClosure, MedicalIntake, MedicalRecord, StaffMember } from "@/lib/types";
+import type { Athlete, InjuryMechanism, InjurySeverity, MedicalClosure, MedicalIntake, MedicalRecord, StaffMember, TissueType } from "@/lib/types";
 import { sectionHref } from "@/lib/nav";
 import { newId } from "@/lib/store";
 import { useDbCollection } from "@/lib/useDbCollection";
@@ -148,6 +148,9 @@ function IntakeModal({ entry, staff, onClose, onSave }: { entry: { record: Medic
     dataInfortunio: i?.dataInfortunio ?? r.date,
     meccanismo: i?.meccanismo ?? r.mechanism ?? "",
     gravita: (i?.gravita ?? r.severity ?? "") as InjurySeverity | "",
+    tessuto: (i?.tessuto ?? "") as TissueType | "",
+    meccanismoTipo: (i?.meccanismoTipo ?? "") as InjuryMechanism | "",
+    classificazione: i?.classificazione ?? "",
     // La segnalazione dello staff (record.injury) è anamnesi, non diagnosi:
     // il medico la trova già scritta e formula lui la diagnosi.
     anamnesi: i?.anamnesi ?? r.injury,
@@ -171,6 +174,9 @@ function IntakeModal({ entry, staff, onClose, onSave }: { entry: { record: Medic
       dataInfortunio: form.dataInfortunio || undefined,
       meccanismo: t(form.meccanismo),
       gravita: (form.gravita || undefined) as InjurySeverity | undefined,
+      tessuto: (form.tessuto || undefined) as TissueType | undefined,
+      meccanismoTipo: (form.meccanismoTipo || undefined) as InjuryMechanism | undefined,
+      classificazione: t(form.classificazione),
       anamnesi: t(form.anamnesi),
       esameObiettivo: t(form.esameObiettivo),
       sospettoDiagnostico: t(form.sospettoDiagnostico),
@@ -210,6 +216,21 @@ function IntakeModal({ entry, staff, onClose, onSave }: { entry: { record: Medic
                 <option value="">—</option><option value="lieve">lieve</option><option value="moderato">moderato</option><option value="grave">grave</option>
               </select>
             </Field>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <Field label="Tessuto">
+              <select className="inp" value={form.tessuto} onChange={(e) => set("tessuto", e.target.value as TissueType | "")}>
+                <option value="">—</option>
+                {(["muscolare", "tendineo", "legamentoso", "osseo", "articolare", "altro"] as TissueType[]).map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            </Field>
+            <Field label="Meccanismo (tipo)">
+              <select className="inp" value={form.meccanismoTipo} onChange={(e) => set("meccanismoTipo", e.target.value as InjuryMechanism | "")}>
+                <option value="">—</option>
+                <option value="non-contatto">non-contatto</option><option value="contatto">contatto</option><option value="overuse">overuse</option><option value="indiretto">indiretto</option>
+              </select>
+            </Field>
+            <Field label="Classificazione / codice"><input className="inp" value={form.classificazione} onChange={(e) => set("classificazione", e.target.value)} placeholder="es. BAMIC 2b · OSICS…" /></Field>
           </div>
         </Section>
 
