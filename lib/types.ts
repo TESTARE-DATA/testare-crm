@@ -326,8 +326,8 @@ export interface MedicalClosure {
   outcome?: string;
 }
 
-export type RehabKind = "esercizio" | "trattamento";
-/** Voce della libreria riabilitativa (esercizio rieducativo o terapia). */
+export type RehabKind = "esercizio" | "trattamento" | "prevenzione";
+/** Voce della libreria riabilitativa (esercizio rieducativo, terapia o prevenzione). */
 export interface RehabItem {
   id: string;
   clientId: string;

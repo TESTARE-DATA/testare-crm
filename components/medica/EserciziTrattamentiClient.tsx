@@ -12,6 +12,7 @@ import { MedHeader } from "@/components/medica/MedHeader";
 const KIND_META: Record<RehabKind, { label: string; color: string; icon: string }> = {
   esercizio: { label: "Esercizio", color: "var(--good)", icon: "dumbbell" },
   trattamento: { label: "Trattamento", color: "var(--med)", icon: "medical" },
+  prevenzione: { label: "Prevenzione", color: "#4f46e5", icon: "bolt" },
 };
 
 export function EserciziTrattamentiClient({ clientId, seedItems, seedCount }: { clientId: string; seedItems: RehabItem[]; seedCount: number }) {
@@ -24,6 +25,7 @@ export function EserciziTrattamentiClient({ clientId, seedItems, seedCount }: { 
   const list = all.filter((i) => filter === "tutti" || i.kind === filter);
   const nEx = all.filter((i) => i.kind === "esercizio").length;
   const nTx = all.filter((i) => i.kind === "trattamento").length;
+  const nPrev = all.filter((i) => i.kind === "prevenzione").length;
 
   return (
     <div className="mx-auto max-w-[1200px] fade-up">
@@ -37,16 +39,17 @@ export function EserciziTrattamentiClient({ clientId, seedItems, seedCount }: { 
         actions={<button onClick={() => setOpen(true)} className="med-accent-bg flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm"><Icon name="plus" size={16} /> Aggiungi voce</button>}
       />
 
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Voci in libreria" value={all.length} tone="brand" icon="layers" />
         <StatCard label="Esercizi" value={nEx} tone="good" icon="dumbbell" />
         <StatCard label="Trattamenti" value={nTx} tone="default" icon="medical" />
+        <StatCard label="Prevenzione" value={nPrev} icon="bolt" />
       </div>
 
       <div className="mb-4 flex gap-1 rounded-xl border border-border bg-surface p-1 w-fit">
-        {(["tutti", "esercizio", "trattamento"] as const).map((f) => (
+        {(["tutti", "esercizio", "trattamento", "prevenzione"] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)} className={`rounded-lg px-3.5 py-1.5 text-[13px] font-semibold capitalize transition-colors ${filter === f ? "brand-bg brand-on" : "text-muted hover:text-foreground"}`}>
-            {f === "tutti" ? "Tutti" : f === "esercizio" ? "Esercizi" : "Trattamenti"}
+            {f === "tutti" ? "Tutti" : f === "esercizio" ? "Esercizi" : f === "trattamento" ? "Trattamenti" : "Prevenzione"}
           </button>
         ))}
       </div>
@@ -125,7 +128,7 @@ function AddItemModal({ clientId, onClose, onAdd }: { clientId: string; onClose:
       <div className="overflow-y-auto p-6">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Nome" full><input className="inp" value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus placeholder="es. Nordic curl assistito" /></Field>
-          <Field label="Tipo"><select className="inp" value={form.kind} onChange={(e) => set("kind", e.target.value as RehabKind)}><option value="esercizio">Esercizio</option><option value="trattamento">Trattamento</option></select></Field>
+          <Field label="Tipo"><select className="inp" value={form.kind} onChange={(e) => set("kind", e.target.value as RehabKind)}><option value="esercizio">Esercizio</option><option value="trattamento">Trattamento</option><option value="prevenzione">Prevenzione</option></select></Field>
           <Field label="Distretto / area"><input className="inp" value={form.area} onChange={(e) => set("area", e.target.value)} placeholder="es. Catena posteriore" /></Field>
           <Field label="Dosaggio"><input className="inp" value={form.dosage} onChange={(e) => set("dosage", e.target.value)} placeholder="es. 4×8 ecc." /></Field>
           <Field label="Intensità / parametri"><input className="inp" value={form.intensity} onChange={(e) => set("intensity", e.target.value)} placeholder="es. RPE 7 · 60% 1RM" /></Field>
