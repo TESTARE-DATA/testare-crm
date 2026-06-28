@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Athlete, InjuryPhase, MedicalClosure, MedicalRecord, MedicalType, PlayerRole } from "@/lib/types";
 import { sectionHref } from "@/lib/nav";
 import { newId } from "@/lib/store";
@@ -45,6 +45,14 @@ export function AreaMedicaClient({ clientId, seed, athletes: seedAthletes, readi
   const { items: closures } = useDbCollection<MedicalClosure>(`medical-closed:${clientId}`);
   const { setOverride } = useAthleteEdits(clientId);
   const [view, setView] = useState<"cartelle" | "fase">("cartelle");
+  // Ricorda la vista scelta (Cartelle/Per fase): così un re-render/rimontaggio
+  // non la riporta più allo standard da solo.
+  const viewKey = `med-overview-view:${clientId}`;
+  useEffect(() => {
+    const v = typeof localStorage !== "undefined" ? localStorage.getItem(viewKey) : null;
+    if (v === "fase" || v === "cartelle") setView(v);
+  }, [viewKey]);
+  const changeView = (v: "cartelle" | "fase") => { setView(v); try { localStorage.setItem(viewKey, v); } catch {} };
   const [open, setOpen] = useState(false);
 
   const localAthIds = new Set(localAthletes.map((a) => a.id));
@@ -88,8 +96,8 @@ export function AreaMedicaClient({ clientId, seed, athletes: seedAthletes, readi
         actions={
           <>
             <div className="flex rounded-xl border border-border bg-surface p-0.5">
-              <ToggleBtn active={view === "cartelle"} onClick={() => setView("cartelle")} icon="users">Cartelle</ToggleBtn>
-              <ToggleBtn active={view === "fase"} onClick={() => setView("fase")} icon="layers">Per fase</ToggleBtn>
+              <ToggleBtn active={view === "cartelle"} onClick={() => changeView("cartelle")} icon="users">Cartelle</ToggleBtn>
+              <ToggleBtn active={view === "fase"} onClick={() => changeView("fase")} icon="layers">Per fase</ToggleBtn>
             </div>
             <button onClick={() => setOpen(true)} className="med-accent-bg flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm"><Icon name="upload" size={16} /> Aggiungi cartella</button>
           </>
