@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Athlete, DiaryEntryKind, MedicalClosure, MedicalIntake, MedicalRecord, PhysioDiaryEntry, RehabItem, RtpAssessment, RtpGate, StaffMember } from "@/lib/types";
+import type { Athlete, DiaryEntryKind, MedicalClosure, MedicalIntake, MedicalRecord, PhysioDiaryEntry, PromEntry, RehabItem, RtpAssessment, RtpGate, StaffMember } from "@/lib/types";
 import { newId } from "@/lib/store";
 import { useDbCollection } from "@/lib/useDbCollection";
 import { useRoster } from "@/lib/useRoster";
@@ -169,6 +169,9 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
           )}
         </div>
 
+        {/* PROM validati — outcome riferiti dal paziente, seriati */}
+        <PromPanel clientId={clientId} recordId={m.id} athleteId={a.id} />
+
         {/* Criteri di rientro (RTP) — decisione di ritorno criteria-based */}
         <RtpPanel
           gates={rtpGates}
@@ -334,6 +337,82 @@ function DeltaValue({ pre, post, colorOf }: { pre?: number; post?: number; color
       ) : (
         <span className="font-semibold" style={{ color: colorOf(end) }}>{end}</span>
       )}
+    </div>
+  );
+}
+
+// PROM validati (outcome riferiti dal paziente), seriati nel tempo. 0–100, più alto = meglio.
+const PROM_INSTRUMENTS = ["VISA-A", "VISA-P", "KOOS", "IKDC", "FAAM", "HAGOS"];
+const promColor = (s: number) => (s >= 80 ? "var(--good)" : s >= 60 ? "var(--warn)" : "var(--bad)");
+
+function PromPanel({ clientId, recordId, athleteId }: { clientId: string; recordId: string; athleteId: string }) {
+  const { items, add, remove } = useDbCollection<PromEntry>(`prom:${clientId}`);
+  const localIds = new Set(items.map((i) => i.id));
+  const entries = items.filter((e) => e.recordId === recordId);
+  const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date));
+  // Delta vs misurazione precedente dello stesso strumento (cronologico).
+  const prevScore = new Map<string, number>();
+  for (const e of [...entries].sort((a, b) => a.date.localeCompare(b.date))) {
+    const before = prevScore.get(`seen-${e.instrument}`);
+    prevScore.set(e.id, before ?? NaN);
+    prevScore.set(`seen-${e.instrument}`, e.score);
+  }
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ instrument: PROM_INSTRUMENTS[0], date: new Date().toISOString().slice(0, 10), score: 70 });
+  const setF = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
+
+  function submit() {
+    add({ id: newId(`${clientId}-prom`), clientId, recordId, athleteId, date: form.date, instrument: form.instrument, score: form.score });
+    setOpen(false);
+  }
+
+  return (
+    <div className="card mt-5 overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center gap-1.5 text-sm font-semibold"><Icon name="clipboard" size={16} className="med-accent" /> PROM · outcome validati</div>
+        <button onClick={() => setOpen((o) => !o)} className="med-accent-bg inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white"><Icon name="plus" size={13} /> Aggiungi</button>
+      </div>
+
+      {open && (
+        <div className="flex flex-wrap items-end gap-2 border-b border-border bg-background/60 px-4 py-3">
+          <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted">Strumento</span>
+            <select className="inp h-9 w-32" value={form.instrument} onChange={(e) => setF("instrument", e.target.value)}>{PROM_INSTRUMENTS.map((x) => <option key={x}>{x}</option>)}</select>
+          </label>
+          <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted">Data</span>
+            <input type="date" className="inp h-9 w-40" value={form.date} onChange={(e) => setF("date", e.target.value)} />
+          </label>
+          <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted">Punteggio (0–100)</span>
+            <input type="number" min={0} max={100} className="inp h-9 w-28" value={form.score} onChange={(e) => setF("score", Math.max(0, Math.min(100, +e.target.value)))} />
+          </label>
+          <button onClick={submit} className="h-9 rounded-lg med-accent-bg px-3 text-[13px] font-semibold text-white">Salva</button>
+          <button onClick={() => setOpen(false)} className="h-9 rounded-lg border border-border px-3 text-[13px] font-medium hover:bg-background">Annulla</button>
+        </div>
+      )}
+
+      {sorted.length === 0 ? (
+        <p className="px-4 py-6 text-center text-[13px] text-muted">Nessun PROM registrato. Aggiungi una misurazione (VISA-A/P, KOOS, FAAM…).</p>
+      ) : (
+        <ul className="divide-y divide-border">
+          {sorted.map((e) => {
+            const delta = prevScore.get(e.id);
+            const hasDelta = typeof delta === "number" && !Number.isNaN(delta);
+            const diff = hasDelta ? e.score - (delta as number) : 0;
+            return (
+              <li key={e.id} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="w-16 shrink-0 text-[12px] font-bold tnum">{fmtShort(e.date)}</span>
+                <span className="rounded-full med-soft-bg med-accent px-2 py-0.5 text-[11px] font-bold">{e.instrument}</span>
+                <div className="flex-1" />
+                {hasDelta && <span className="text-[11px] font-semibold tnum" style={{ color: diff > 0 ? "var(--good)" : diff < 0 ? "var(--bad)" : "var(--muted-2)" }}>{diff > 0 ? "+" : ""}{diff}</span>}
+                <span className="w-16 text-right text-[15px] font-extrabold tnum" style={{ color: promColor(e.score) }}>{e.score}<span className="text-[11px] text-muted-2">/100</span></span>
+                {localIds.has(e.id) && <button onClick={() => remove(e.id)} title="Elimina" className="text-muted-2 hover:text-red-600">✕</button>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <p className="border-t border-border px-4 py-3 text-[11px] text-muted-2">
+        Questionari validati regione-specifici (più alto = meglio): VISA-A/P (tendinopatie), KOOS/IKDC (ginocchio), FAAM (caviglia), HAGOS (anca/inguine). Da seriare nel tempo.
+      </p>
     </div>
   );
 }

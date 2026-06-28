@@ -353,6 +353,19 @@ export interface RtpAssessment {
   updatedAt: string; // ISO
 }
 
+/** Misurazione di un PROM validato (outcome riferito dal paziente), seriato nel
+ *  tempo: VISA-A/P, KOOS, IKDC, FAAM, HAGOS… Punteggio 0–100, più alto = meglio. */
+export interface PromEntry {
+  id: string;
+  clientId: string;
+  recordId: string; // = id MedicalRecord (caso clinico)
+  athleteId: string;
+  date: string; // ISO
+  instrument: string; // es. "VISA-A", "KOOS", "FAAM"
+  score: number; // 0–100
+  note?: string;
+}
+
 export type RehabKind = "esercizio" | "trattamento" | "prevenzione";
 /** Voce della libreria riabilitativa (esercizio rieducativo, terapia o prevenzione). */
 export interface RehabItem {
