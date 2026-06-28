@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { dbRead, dbUpsert, dbRemove } from "@/lib/db/actions";
 
 // ============================================================================
@@ -26,6 +26,10 @@ const cache = new Map<string, unknown[]>();
 export function useDbCollection<T extends { id: string }>(key: string, initial?: T[]) {
   const [items, setItems] = useState<T[]>(() => (cache.get(key) as T[]) ?? initial ?? []);
   const [ready, setReady] = useState(() => cache.has(key) || initial != null);
+  // Riferimento all'ultimo stato committato: serve a `update` per calcolare l'item
+  // aggiornato in modo sincrono (l'updater di setItems è differito in React 18).
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
 
   const refresh = useCallback(() => {
     dbRead<T>(key)
@@ -65,17 +69,17 @@ export function useDbCollection<T extends { id: string }>(key: string, initial?:
   }, [key, refresh]);
 
   const update = useCallback((id: string, patch: Partial<T>) => {
-    let updated: T | undefined;
+    // Calcola l'item aggiornato dallo stato corrente (ref), così la scrittura su DB
+    // avviene sempre — non dipende dall'esecuzione (differita) dell'updater.
+    const existing = itemsRef.current.find((i) => i.id === id);
+    if (!existing) return;
+    const updated = { ...existing, ...patch };
     setItems((prev) => {
-      const next = prev.map((i) => {
-        if (i.id !== id) return i;
-        updated = { ...i, ...patch };
-        return updated;
-      });
+      const next = prev.map((i) => (i.id === id ? updated : i));
       cache.set(key, next);
       return next;
     });
-    if (updated) dbUpsert(key, updated).catch(refresh);
+    dbUpsert(key, updated).catch(refresh);
   }, [key, refresh]);
 
   return { items, add, remove, update, ready, refresh };

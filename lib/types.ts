@@ -326,6 +326,24 @@ export interface MedicalClosure {
   outcome?: string;
 }
 
+/** Criterio oggettivo di rientro (return-to-play). Approccio criteria-based:
+ *  ogni gate ha una soglia EBM e va soddisfatto prima del rientro. */
+export interface RtpGate {
+  key: string;
+  label: string;
+  target: string; // soglia (es. "LSI ≥ 90%", "≤ 2/10")
+  value?: string; // valore rilevato (opzionale)
+  met: boolean;
+}
+/** Valutazione RTP di una cartella (criteri di rientro a gate). id = id cartella. */
+export interface RtpAssessment {
+  id: string; // = id MedicalRecord
+  clientId: string;
+  gates: RtpGate[];
+  note?: string;
+  updatedAt: string; // ISO
+}
+
 export type RehabKind = "esercizio" | "trattamento" | "prevenzione";
 /** Voce della libreria riabilitativa (esercizio rieducativo, terapia o prevenzione). */
 export interface RehabItem {

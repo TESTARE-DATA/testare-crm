@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Athlete, DiaryEntryKind, MedicalClosure, MedicalIntake, MedicalRecord, PhysioDiaryEntry, RehabItem, StaffMember } from "@/lib/types";
+import type { Athlete, DiaryEntryKind, MedicalClosure, MedicalIntake, MedicalRecord, PhysioDiaryEntry, RehabItem, RtpAssessment, RtpGate, StaffMember } from "@/lib/types";
 import { newId } from "@/lib/store";
 import { useDbCollection } from "@/lib/useDbCollection";
 import { useRoster } from "@/lib/useRoster";
@@ -22,6 +22,19 @@ const fmtShort = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateStrin
 const painColor = (p: number) => (p >= 7 ? "var(--bad)" : p >= 4 ? "var(--warn)" : "var(--good)");
 const funcColor = (f: number) => (f >= 7 ? "var(--good)" : f >= 4 ? "var(--warn)" : "var(--bad)"); // funzione: più alto = meglio
 const VISITA_COLOR = "#7c3aed"; // viola: distingue una visita medica dalle sedute di trattamento
+
+// Criteri di rientro (RTP) a gate oggettivi — set EBM di default, criteria-based.
+const RTP_GATES_DEFAULT: { key: string; label: string; target: string }[] = [
+  { key: "strength", label: "Forza arto infortunato", target: "LSI ≥ 90%" },
+  { key: "hop", label: "Hop test (batteria)", target: "LSI ≥ 90%" },
+  { key: "pain", label: "Dolore sotto carico", target: "≤ 2/10 NRS" },
+  { key: "function", label: "Funzione (PSFS)", target: "≥ 8/10" },
+  { key: "rom", label: "ROM completo e simmetrico", target: "simmetrico" },
+  { key: "sport", label: "Test sport-specifici / GPS in target", target: "raggiunti" },
+  { key: "psych", label: "Readiness psicologica (ACL-RSI)", target: "≥ 60/100" },
+  { key: "medical", label: "Via libera medica", target: "sì" },
+];
+const defaultGates = (): RtpGate[] => RTP_GATES_DEFAULT.map((g) => ({ ...g, met: false }));
 // Griglia condivisa header/righe della tabella "Trattamenti svolti" (colonne allineate).
 const DIARY_COLS = "grid grid-cols-[3.25rem_minmax(0,1fr)_5.5rem_5.5rem_3rem_1.25rem] gap-3";
 
@@ -36,6 +49,13 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
   const { items: localMedical } = useDbCollection<MedicalRecord>(`medical:${clientId}`, initialMedical);
   const { items: localIntakes } = useDbCollection<MedicalIntake>(`intake:${clientId}`, initialIntakes);
   const { items: closures, add: addClosure } = useDbCollection<MedicalClosure>(`medical-closed:${clientId}`, initialClosures);
+  const { items: rtpItems, add: addRtp, update: updateRtp } = useDbCollection<RtpAssessment>(`rtp:${clientId}`);
+
+  function saveRtp(recordId: string, gates: RtpGate[]) {
+    const now = new Date().toISOString();
+    if (rtpItems.some((x) => x.id === recordId)) updateRtp(recordId, { gates, updatedAt: now });
+    else addRtp({ id: recordId, clientId, gates, updatedAt: now });
+  }
 
   const [openAthlete, setOpenAthlete] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -76,6 +96,9 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
   // ----- Dettaglio atleta -----
   if (selected) {
     const a = selected.athlete, m = selected.record;
+    const rtpGates = rtpItems.find((x) => x.id === m.id)?.gates ?? defaultGates();
+    const rtpMet = rtpGates.filter((g) => g.met).length;
+    const rtpReady = rtpMet === rtpGates.length;
     return (
       <div className="mx-auto max-w-[1000px] fade-up">
         <button onClick={() => setOpenAthlete(null)} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-foreground"><Icon name="arrowLeft" size={15} /> Atleti in terapia</button>
@@ -146,8 +169,15 @@ export function DiarioClient({ clientId, seedAthletes, seedMedical, seedIntakes,
           )}
         </div>
 
+        {/* Criteri di rientro (RTP) — decisione di ritorno criteria-based */}
+        <RtpPanel
+          gates={rtpGates}
+          onToggle={(k) => saveRtp(m.id, rtpGates.map((g) => (g.key === k ? { ...g, met: !g.met } : g)))}
+          onSetValue={(k, v) => saveRtp(m.id, rtpGates.map((g) => (g.key === k ? { ...g, value: v || undefined } : g)))}
+        />
+
         {adding && <AddEntryModal clientId={clientId} athlete={a} rehabItems={rehabItems} staff={staff} onClose={() => setAdding(false)} onAdd={saveEntry} />}
-        {closing && <ConfirmDialog title="Chiudere il percorso" confirmLabel="Chiudi e rientra in rosa" message={<>Confermi la chiusura del percorso di <b>{a.firstName} {a.lastName}</b>? L&apos;atleta rientra in rosa come disponibile e il caso passa allo storico stagionale.</>} onConfirm={() => closePath(closing.record, closing.athlete)} onClose={() => setClosing(null)} />}
+        {closing && <ConfirmDialog title="Chiudere il percorso" confirmLabel="Chiudi e rientra in rosa" message={<>Confermi la chiusura del percorso di <b>{a.firstName} {a.lastName}</b>? L&apos;atleta rientra in rosa come disponibile e il caso passa allo storico stagionale.{!rtpReady && <><br /><span className="mt-2 inline-block font-semibold text-amber-700">⚠️ Criteri di rientro: solo {rtpMet}/{rtpGates.length} soddisfatti.</span></>}</>} onConfirm={() => closePath(closing.record, closing.athlete)} onClose={() => setClosing(null)} />}
       </div>
     );
   }
@@ -304,6 +334,42 @@ function DeltaValue({ pre, post, colorOf }: { pre?: number; post?: number; color
       ) : (
         <span className="font-semibold" style={{ color: colorOf(end) }}>{end}</span>
       )}
+    </div>
+  );
+}
+
+// Criteri di rientro (RTP) a gate oggettivi: checklist criteria-based + readiness.
+// Presentazionale: lo stato vive nel parent (un unico useDbCollection 'rtp:').
+function RtpPanel({ gates, onToggle, onSetValue }: { gates: RtpGate[]; onToggle: (key: string) => void; onSetValue: (key: string, value: string) => void }) {
+  const met = gates.filter((g) => g.met).length;
+  const ready = met === gates.length;
+  const tone = ready ? "var(--good)" : met >= gates.length / 2 ? "var(--warn)" : "var(--bad)";
+  const toggle = onToggle;
+  const setValue = onSetValue;
+
+  return (
+    <div className="card mt-5 overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center gap-1.5 text-sm font-semibold"><Icon name="target" size={16} className="med-accent" /> Criteri di rientro (RTP)</div>
+        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-bold" style={{ color: tone, backgroundColor: `color-mix(in srgb, ${tone} 14%, transparent)` }}>
+          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tone }} /> {met}/{gates.length} soddisfatti{ready ? " · pronto" : ""}
+        </span>
+      </div>
+      <ul className="divide-y divide-border">
+        {gates.map((g) => (
+          <li key={g.key} className="flex items-center gap-3 px-4 py-2.5">
+            <button onClick={() => toggle(g.key)} aria-pressed={g.met} title={g.met ? "Soddisfatto" : "Da soddisfare"} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-[12px] font-bold leading-none transition-colors" style={g.met ? { backgroundColor: "var(--good)", borderColor: "var(--good)", color: "#fff" } : { borderColor: "var(--muted-2)", color: "transparent" }}>✓</button>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-medium leading-tight">{g.label}</div>
+              <div className="text-[11px] text-muted-2">obiettivo: {g.target}</div>
+            </div>
+            <div className="w-28 shrink-0"><input className="inp h-8 text-[12px]" value={g.value ?? ""} onChange={(e) => setValue(g.key, e.target.value)} placeholder="valore" /></div>
+          </li>
+        ))}
+      </ul>
+      <p className="border-t border-border px-4 py-3 text-[11px] text-muted-2">
+        Approccio <b>criteria-based</b>: il rientro è una decisione condivisa sul rischio (framework StARRT), non solo questi gate. Forza/hop si agganciano a <span className="med-accent font-medium">Test e misura</span>.
+      </p>
     </div>
   );
 }
