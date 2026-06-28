@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { getAthletes, getGps } from "@/lib/data";
+import { getAthletes, getGps, getTests } from "@/lib/data";
 import { sectionHref } from "@/lib/nav";
 import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/ui";
@@ -13,32 +13,47 @@ export default async function DataAnalysisPage({ params }: { params: Promise<{ c
 
   const gps = getGps(clientId);
   const athletes = getAthletes(clientId);
+  const tests = getTests(clientId);
   const sessions = new Set(gps.map((g) => g.date)).size;
   const lastDate = [...gps.map((g) => g.date)].sort().pop();
-  const lastKm = lastDate
-    ? Math.round(gps.filter((g) => g.date === lastDate).reduce((s, g) => s + g.totalDistanceM, 0) / 1000)
-    : 0;
+  const todays = lastDate ? gps.filter((g) => g.date === lastDate) : [];
+  const lastKm = Math.round(todays.reduce((s, g) => s + g.totalDistanceM, 0) / 1000);
+  const lastTrimp = todays.reduce((s, g) => s + g.trimp, 0);
 
   const cards = [
     {
       slug: "carico",
       icon: "load",
       title: "Carico",
-      desc: "Carico interno (sRPE, TRIMP, zone HR) ed esterno per atleta e per squadra, con trend e monotonia.",
+      desc: "Carico interno: sRPE e RPE degli allenamenti, carico settimanale per atleta e squadra, con trend e variazioni.",
       stat: `${sessions} sedute`,
+    },
+    {
+      slug: "cardiofrequenzimetro",
+      icon: "pulse",
+      title: "Cardiofrequenzimetro",
+      desc: "Frequenza cardiaca, TRIMP (Edwards) e tempo nelle zone HR (Z4/Z5). Carico cardiovascolare interno per atleta.",
+      stat: `${lastTrimp.toLocaleString("it-IT")} TRIMP ultima seduta`,
     },
     {
       slug: "gps",
       icon: "live",
       title: "GPS",
-      desc: "Distanza, alta velocità, sprint, accel/decel e Player Load dai tracker. Leaderboard e medie per ruolo.",
+      desc: "Carico esterno: distanza, alta velocità, sprint, accel/decel e Player Load dai tracker. Leaderboard e medie per ruolo.",
       stat: `${lastKm} km ultima seduta`,
+    },
+    {
+      slug: "test",
+      icon: "stopwatch",
+      title: "Test e misura",
+      desc: "Valutazione neuromuscolare TESTÀRE (forza, potenza, reattività, simmetrie) e misurazioni interne della società.",
+      stat: `${tests.length} risultati`,
     },
   ];
 
   return (
     <div className="mx-auto max-w-7xl fade-up">
-      <PageHeader title="Data Analysis" subtitle="Monitoraggio del carico e dei dati di tracking GPS" icon="chart" />
+      <PageHeader title="Data Analysis" subtitle="Tutti i parametri raccolti sull'atleta: carico, cuore, GPS e test" icon="chart" />
       <div className="grid gap-4 md:grid-cols-2">
         {cards.map((c) => (
           <Link key={c.slug} href={sectionHref(clientId, c.slug)} className="card card-hover sheen group flex flex-col p-5">
@@ -54,7 +69,7 @@ export default async function DataAnalysisPage({ params }: { params: Promise<{ c
       </div>
       <div className="brand-soft-bg mt-6 flex items-center gap-3 rounded-xl border border-dashed border-border p-4 text-sm text-foreground/70">
         <Icon name="sparkle" size={18} className="brand-text" />
-        I dati di Carico e GPS alimentano la <Link href={sectionHref(clientId, "rd")} className="brand-text mx-1 font-semibold hover:underline">Data Intelligence (R&D)</Link> per costruire correlazioni e report su {athletes.length} atleti.
+        I dati di carico, cuore, GPS e test alimentano la <Link href={sectionHref(clientId, "rd")} className="brand-text mx-1 font-semibold hover:underline">Data Intelligence (R&D)</Link> per costruire correlazioni e report su {athletes.length} atleti.
       </div>
     </div>
   );

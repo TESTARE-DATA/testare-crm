@@ -17,7 +17,7 @@ export default async function TestHub({ params }: { params: Promise<{ clientId: 
 
   return (
     <div className="mx-auto max-w-5xl fade-up">
-      <PageHeader title="Test e misurazioni" subtitle="Valutazione neuromuscolare TESTÀRE e misurazioni rilevate internamente" icon="stopwatch" />
+      <PageHeader title="Test e misura" subtitle="Valutazione neuromuscolare TESTÀRE e misurazioni rilevate internamente" icon="stopwatch" />
 
       <div className="grid gap-5 md:grid-cols-2">
         {/* Valutazione neuromuscolare TESTÀRE */}
