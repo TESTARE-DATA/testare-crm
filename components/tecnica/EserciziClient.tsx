@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { Modal, ModalHeader } from "@/components/Modal";
 import { Badge, PageHeader } from "@/components/ui";
 import { AssignButton } from "@/components/programmazione/AssignButton";
+import { PitchThumb } from "@/components/tecnica/PitchThumb";
 
 const ATH_RPE: Record<string, number> = { Forza: 7, Potenza: 7, Sprint: 8, Rapidità: 6, Pliometria: 7, Prevenzione: 4, Core: 4, Mobilità: 3 };
 const estRpeFor = (e: Exercise) => (e.domain === "tattico" ? 7 : ATH_RPE[e.category] ?? 6);
@@ -69,6 +70,11 @@ export function EserciziClient({ clientId, seed, domain, athletes, defaultDate }
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {list.map((e) => (
           <div key={e.id} className="card card-hover group relative flex flex-col p-4">
+            {e.drill && (
+              <div className="-mx-4 -mt-4 mb-3 h-24 overflow-hidden rounded-t-2xl border-b border-border">
+                <PitchThumb drill={e.drill} />
+              </div>
+            )}
             {/* azioni */}
             <div className="absolute right-3 top-3 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
               {e.drill && <a href={`/clienti/${clientId}/area-tecnica/campo-live?edit=${e.id}`} className="brand-soft-bg brand-text rounded-lg border border-border p-1.5 hover:brightness-95" title="Apri in Campo Live"><Icon name="live" size={14} /></a>}
