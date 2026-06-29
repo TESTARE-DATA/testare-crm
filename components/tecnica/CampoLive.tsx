@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";
-import type { DrillConfig, DrillEntity, DrillIntensity, Exercise, GoalType, PitchOrientation, TacticalCategory } from "@/lib/types";
+import type { DrillArrow, DrillConfig, DrillEntity, DrillIntensity, Exercise, GoalType, PitchOrientation, TacticalCategory } from "@/lib/types";
 import { useLocalCollection, newId } from "@/lib/store";
 import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui";
@@ -79,6 +79,15 @@ function buildEntities(c: BuildCfg): DrillEntity[] {
 }
 const structSig = (c: BuildCfg) => `${c.playersA}|${c.playersB}|${c.formationA}|${c.formationB}|${c.jollyCount}|${c.goalkeepers}|${c.goalType}|${c.shape}`;
 
+type BoardMode = "sposta" | "corsa" | "passaggio" | "conduzione";
+type Snap = { entities: DrillEntity[]; arrows: DrillArrow[] };
+const ARROW_KINDS: { key: BoardMode; label: string }[] = [
+  { key: "sposta", label: "✋ Sposta" },
+  { key: "corsa", label: "→ Corsa" },
+  { key: "passaggio", label: "⇢ Passaggio" },
+  { key: "conduzione", label: "↝ Conduzione" },
+];
+
 export function CampoLive({ clientId }: { clientId: string }) {
   const { add } = useLocalCollection<Exercise>(`drills:${clientId}`);
   const [saved, setSaved] = useState<string | null>(null);
@@ -122,14 +131,18 @@ export function CampoLive({ clientId }: { clientId: string }) {
 
   const set = <K extends keyof typeof cfg>(k: K, v: (typeof cfg)[K]) => setCfg((c) => ({ ...c, [k]: v }));
 
-  // ----- Lavagna: entità posizionabili (drag) + undo/redo -----
+  // ----- Lavagna: entità trascinabili + frecce + undo/redo -----
   const [entities, setEntities] = useState<DrillEntity[]>(() => buildEntities(cfg));
+  const [arrows, setArrows] = useState<DrillArrow[]>([]);
+  const [mode, setMode] = useState<BoardMode>("sposta");
   const sigRef = useRef(structSig(cfg));
-  const [past, setPast] = useState<DrillEntity[][]>([]);
-  const [future, setFuture] = useState<DrillEntity[][]>([]);
-  const pushHistory = () => { setPast((p) => [...p.slice(-39), entities]); setFuture([]); };
-  const undo = () => { if (!past.length) return; setFuture((f) => [entities, ...f]); setEntities(past[past.length - 1]); setPast((p) => p.slice(0, -1)); };
-  const redo = () => { if (!future.length) return; setPast((p) => [...p, entities]); setEntities(future[0]); setFuture((f) => f.slice(1)); };
+  const [past, setPast] = useState<Snap[]>([]);
+  const [future, setFuture] = useState<Snap[]>([]);
+  const snap = (): Snap => ({ entities, arrows });
+  const pushHistory = () => { setPast((p) => [...p.slice(-39), snap()]); setFuture([]); };
+  const apply = (s: Snap) => { setEntities(s.entities); setArrows(s.arrows); };
+  const undo = () => { if (!past.length) return; setFuture((f) => [snap(), ...f]); apply(past[past.length - 1]); setPast((p) => p.slice(0, -1)); };
+  const redo = () => { if (!future.length) return; setPast((p) => [...p, snap()]); apply(future[0]); setFuture((f) => f.slice(1)); };
   // Cambiando la STRUTTURA (numeri/moduli/jolly/portieri) le posizioni si rigenerano.
   // Cambiare dimensioni/orientamento NON resetta: le coordinate sono normalizzate.
   useEffect(() => {
@@ -138,6 +151,9 @@ export function CampoLive({ clientId }: { clientId: string }) {
   }, [cfg.playersA, cfg.playersB, cfg.formationA, cfg.formationB, cfg.jollyCount, cfg.goalkeepers, cfg.goalType, cfg.shape]);
   const moveEntity = (id: string, x: number, y: number) => setEntities((es) => es.map((e) => (e.id === id ? { ...e, x: clamp01(x), y: clamp01(y) } : e)));
   const resetPositions = () => { pushHistory(); setEntities(buildEntities(cfg)); };
+  const addArrow = (kind: DrillArrow["kind"], x1: number, y1: number, x2: number, y2: number) => { pushHistory(); setArrows((a) => [...a, { id: newId("arr"), kind, x1: clamp01(x1), y1: clamp01(y1), x2: clamp01(x2), y2: clamp01(y2) }]); };
+  const deleteArrow = (id: string) => { pushHistory(); setArrows((a) => a.filter((x) => x.id !== id)); };
+  const clearArrows = () => { if (!arrows.length) return; pushHistory(); setArrows([]); };
 
   const effA = teamCount(cfg.playersA, cfg.formationA);
   const effB = teamCount(cfg.playersB, cfg.formationB);
@@ -173,7 +189,7 @@ export function CampoLive({ clientId }: { clientId: string }) {
       goalType: cfg.goalType, ballCount: cfg.ballCount, sectors: cfg.sectors, channels: cfg.channels,
       durationMin: cfg.durationMin, series: cfg.series, reps: cfg.reps, recoverySec: cfg.recoverySec,
       intensity: cfg.intensity, densityM2: density, focus: cfg.focus, rules, variants,
-      entities,
+      entities, arrows,
     };
     const ex: Exercise = {
       id: newId(`${clientId}-ex`), clientId,
@@ -213,14 +229,22 @@ export function CampoLive({ clientId }: { clientId: string }) {
         <div className="space-y-4 lg:sticky lg:top-[68px]">
           <div className="card overflow-hidden">
             <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/60 px-3 py-2">
-              <span className="text-[11px] font-semibold text-muted-2">✋ Trascina giocatori e palla</span>
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-0.5">
+                {ARROW_KINDS.map((k) => (
+                  <button key={k.key} onClick={() => setMode(k.key)} className={`rounded-md px-2 py-1 text-[12px] font-semibold transition-colors ${mode === k.key ? "brand-bg brand-on" : "text-muted hover:text-foreground"}`}>{k.label}</button>
+                ))}
+              </div>
               <div className="ml-auto flex items-center gap-1">
-                <button onClick={undo} disabled={!past.length} className="rounded-lg border border-border px-2 py-1 text-[12px] font-medium disabled:opacity-40 hover:bg-background" title="Annulla">↶ Annulla</button>
-                <button onClick={redo} disabled={!future.length} className="rounded-lg border border-border px-2 py-1 text-[12px] font-medium disabled:opacity-40 hover:bg-background" title="Ripeti">↷ Ripeti</button>
+                <button onClick={undo} disabled={!past.length} className="rounded-lg border border-border px-2 py-1 text-[12px] font-medium disabled:opacity-40 hover:bg-background" title="Annulla">↶</button>
+                <button onClick={redo} disabled={!future.length} className="rounded-lg border border-border px-2 py-1 text-[12px] font-medium disabled:opacity-40 hover:bg-background" title="Ripeti">↷</button>
+                <button onClick={clearArrows} disabled={!arrows.length} className="rounded-lg border border-border px-2 py-1 text-[12px] font-medium disabled:opacity-40 hover:bg-background" title="Pulisci frecce">Pulisci frecce</button>
                 <button onClick={resetPositions} className="rounded-lg border border-border px-2 py-1 text-[12px] font-medium hover:bg-background" title="Riporta le posizioni automatiche">Reset</button>
               </div>
             </div>
-            <Pitch cfg={cfg} density={density} entities={entities} onMove={moveEntity} onDragStart={pushHistory} />
+            <Pitch cfg={cfg} density={density} entities={entities} arrows={arrows} mode={mode} onMove={moveEntity} onDragStart={pushHistory} onArrowAdd={addArrow} onArrowDelete={deleteArrow} />
+            {mode === "sposta"
+              ? <div className="px-3 py-1.5 text-[10.5px] text-muted-2">Trascina giocatori e palla · tocca una freccia per cancellarla</div>
+              : <div className="px-3 py-1.5 text-[10.5px] text-muted-2">Traccia una freccia di {mode} dal punto di partenza a quello d&apos;arrivo</div>}
             <div className="grid grid-cols-2 gap-px border-t border-border bg-border sm:grid-cols-5">
               <Kpi label="Dimensioni" value={`${cfg.length}×${cfg.width}`} sub="metri" />
               <Kpi label="Giocatori" value={`${totalPlayers}`} sub={`${effA}v${effB}${cfg.jollyCount ? `+${cfg.jollyCount}` : ""}${effA !== effB ? " ⚡" : ""}`} />
@@ -315,7 +339,7 @@ type PitchCfg = {
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
-function Pitch({ cfg, density, entities, onMove, onDragStart }: { cfg: PitchCfg; density: number; entities: DrillEntity[]; onMove: (id: string, x: number, y: number) => void; onDragStart: () => void }) {
+function Pitch({ cfg, density, entities, arrows, mode, onMove, onDragStart, onArrowAdd, onArrowDelete }: { cfg: PitchCfg; density: number; entities: DrillEntity[]; arrows: DrillArrow[]; mode: BoardMode; onMove: (id: string, x: number, y: number) => void; onDragStart: () => void; onArrowAdd: (kind: DrillArrow["kind"], x1: number, y1: number, x2: number, y2: number) => void; onArrowDelete: (id: string) => void }) {
   const PAD = 22;
   const horizontal = cfg.orientation === "orizzontale";
   const ratio = cfg.length / cfg.width; // lungo : corto (in metri)
@@ -340,9 +364,10 @@ function Pitch({ cfg, density, entities, onMove, onDragStart }: { cfg: PitchCfg;
   const R = clamp(Math.min((0.46 * LONG) / (cols + 1), SHORT / (rows + 1)) * 0.46, 5, 15);
   const SW = Math.max(1, R * 0.18); // spessore tratti proporzionato
 
-  // --- Drag delle entità: conversione coordinate e hit-test ---
+  // --- Interazione: drag entità (modo "sposta") o disegno frecce ---
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [temp, setTemp] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const svgPoint = (clientX: number, clientY: number): [number, number] | null => {
     const svg = svgRef.current; if (!svg) return null;
     const ctm = svg.getScreenCTM(); if (!ctm) return null;
@@ -354,20 +379,40 @@ function Pitch({ cfg, density, entities, onMove, onDragStart }: { cfg: PitchCfg;
     const sp = svgPoint(clientX, clientY); if (!sp) return [0.5, 0.5];
     return horizontal ? [(sp[0] - PAD) / LONG, (sp[1] - PAD) / SHORT] : [(sp[1] - PAD) / LONG, (sp[0] - PAD) / SHORT];
   };
+  // distanza px da un punto al segmento di una freccia (per cancellarla con un tocco)
+  const segDist = (px: number, py: number, a: DrillArrow) => {
+    const [x1, y1] = m(a.x1, a.y1), [x2, y2] = m(a.x2, a.y2);
+    const dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy || 1;
+    let t = ((px - x1) * dx + (py - y1) * dy) / l2; t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+  };
   const onPointerDown = (ev: RPointerEvent<SVGSVGElement>) => {
     const sp = svgPoint(ev.clientX, ev.clientY); if (!sp) return;
-    let best: string | null = null, bd = (R * 1.7) ** 2;
-    for (const e of entities) { const [px, py] = m(e.x, e.y); const d = (px - sp[0]) ** 2 + (py - sp[1]) ** 2; if (d < bd) { bd = d; best = e.id; } }
-    if (best) { onDragStart(); setDragId(best); try { svgRef.current?.setPointerCapture(ev.pointerId); } catch { /* noop */ } ev.preventDefault(); }
+    if (mode === "sposta") {
+      let best: string | null = null, bd = (R * 1.7) ** 2;
+      for (const e of entities) { const [px, py] = m(e.x, e.y); const d = (px - sp[0]) ** 2 + (py - sp[1]) ** 2; if (d < bd) { bd = d; best = e.id; } }
+      if (best) { onDragStart(); setDragId(best); try { svgRef.current?.setPointerCapture(ev.pointerId); } catch { /* noop */ } ev.preventDefault(); return; }
+      const hit = arrows.find((a) => segDist(sp[0], sp[1], a) < 8);
+      if (hit) { onArrowDelete(hit.id); ev.preventDefault(); }
+      return;
+    }
+    // modalità freccia: inizia a tracciare
+    const [a, x] = toNorm(ev.clientX, ev.clientY);
+    setTemp({ x1: a, y1: x, x2: a, y2: x });
+    try { svgRef.current?.setPointerCapture(ev.pointerId); } catch { /* noop */ }
+    ev.preventDefault();
   };
   const onPointerMove = (ev: RPointerEvent<SVGSVGElement>) => {
-    if (!dragId) return;
-    const [a, x] = toNorm(ev.clientX, ev.clientY);
-    onMove(dragId, a, x);
+    if (dragId) { const [a, x] = toNorm(ev.clientX, ev.clientY); onMove(dragId, a, x); return; }
+    if (temp) { const [a, x] = toNorm(ev.clientX, ev.clientY); setTemp((t) => (t ? { ...t, x2: a, y2: x } : null)); }
   };
-  const endDrag = (ev: RPointerEvent<SVGSVGElement>) => {
-    if (dragId) { try { svgRef.current?.releasePointerCapture(ev.pointerId); } catch { /* noop */ } }
-    setDragId(null);
+  const endPointer = (ev: RPointerEvent<SVGSVGElement>) => {
+    if (dragId) { try { svgRef.current?.releasePointerCapture(ev.pointerId); } catch { /* noop */ } setDragId(null); }
+    if (temp) {
+      try { svgRef.current?.releasePointerCapture(ev.pointerId); } catch { /* noop */ }
+      if (mode !== "sposta" && Math.hypot(temp.x2 - temp.x1, temp.y2 - temp.y1) > 0.03) onArrowAdd(mode, temp.x1, temp.y1, temp.x2, temp.y2);
+      setTemp(null);
+    }
   };
 
   const stripes = 8;
@@ -401,14 +446,30 @@ function Pitch({ cfg, density, entities, onMove, onDragStart }: { cfg: PitchCfg;
   const goa1 = rect(0.94, 1, 0.5 - 0.16, 0.5 + 0.16);
   const sp0 = m(0.1, 0.5), sp1 = m(0.9, 0.5);
 
+  // path di una freccia (la conduzione è ondulata)
+  const wavyD = (x1: number, y1: number, x2: number, y2: number) => {
+    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+    const px = -dy / len, py = dx / len, amp = Math.min(6, len * 0.05) + 2.5;
+    const waves = Math.max(2, Math.round(len / 20)), steps = Math.max(8, waves * 8);
+    let d = `M ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+    for (let i = 1; i <= steps; i++) { const t = i / steps; const bx = x1 + dx * t, by = y1 + dy * t; const taper = t > 0.86 ? (1 - t) / 0.14 : 1; const off = Math.sin(t * waves * Math.PI * 2) * amp * taper; d += ` L ${(bx + px * off).toFixed(1)} ${(by + py * off).toFixed(1)}`; }
+    return d;
+  };
+  const arrowD = (a: { kind: DrillArrow["kind"]; x1: number; y1: number; x2: number; y2: number }) => {
+    const [x1, y1] = m(a.x1, a.y1), [x2, y2] = m(a.x2, a.y2);
+    return a.kind === "conduzione" ? wavyD(x1, y1, x2, y2) : `M ${x1} ${y1} L ${x2} ${y2}`;
+  };
+  const dashFor = (k: DrillArrow["kind"]) => (k === "passaggio" ? "7 5" : undefined);
+
   return (
-    <svg ref={svgRef} viewBox={`0 0 ${vbW} ${vbH}`} className="w-full select-none" style={{ maxHeight: 500, touchAction: "none", cursor: dragId ? "grabbing" : "default" }} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
+    <svg ref={svgRef} viewBox={`0 0 ${vbW} ${vbH}`} className="w-full select-none" style={{ maxHeight: 500, touchAction: "none", cursor: dragId ? "grabbing" : mode !== "sposta" ? "crosshair" : "default" }} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endPointer} onPointerCancel={endPointer}>
       <defs>
         <radialGradient id="grass" cx="50%" cy="38%" r="75%">
           <stop offset="0%" stopColor="#2fab63" /><stop offset="100%" stopColor="#1c8f4f" />
         </radialGradient>
         <filter id="psh" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy={R * 0.18} stdDeviation={R * 0.16} floodColor="#06311c" floodOpacity="0.45" /></filter>
         <linearGradient id="vig" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#000" stopOpacity="0.16" /><stop offset="22%" stopColor="#000" stopOpacity="0" /><stop offset="100%" stopColor="#000" stopOpacity="0.14" /></linearGradient>
+        <marker id="ah" markerWidth="5" markerHeight="5" refX="3.6" refY="2.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L5,2.5 L0,5 Z" fill="#fff" /></marker>
       </defs>
 
       {/* surround scuro */}
@@ -457,6 +518,16 @@ function Pitch({ cfg, density, entities, onMove, onDragStart }: { cfg: PitchCfg;
         const br = Math.max(2.5, R * 0.42);
         return <g key={`b${i}`}><ellipse cx={b[0]} cy={b[1] + br * 0.7} rx={br * 0.8} ry={br * 0.3} fill="#000" opacity={0.2} /><circle cx={b[0]} cy={b[1]} r={br} fill="#fff" stroke="#0b0b0c" strokeWidth={0.5} /><circle cx={b[0]} cy={b[1]} r={br * 0.42} fill="#0b0b0c" /></g>;
       })}
+
+      {/* frecce / movimenti */}
+      {arrows.map((a) => {
+        const d = arrowD(a);
+        return <g key={a.id}>
+          <path d={d} fill="none" stroke="#06311c" strokeWidth={3.6} strokeLinecap="round" strokeDasharray={dashFor(a.kind)} opacity={0.35} />
+          <path d={d} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeDasharray={dashFor(a.kind)} markerEnd="url(#ah)" />
+        </g>;
+      })}
+      {temp && mode !== "sposta" && <path d={arrowD({ kind: mode, ...temp })} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeDasharray={dashFor(mode)} markerEnd="url(#ah)" opacity={0.6} />}
 
       {/* entità trascinabili: giocatori, portieri, jolly, palla */}
       {entities.map((e) => {
