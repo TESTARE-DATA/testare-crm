@@ -88,9 +88,10 @@ const ARROW_KINDS: { key: BoardMode; label: string }[] = [
   { key: "conduzione", label: "↝ Conduzione" },
 ];
 
-export function CampoLive({ clientId }: { clientId: string }) {
-  const { add } = useLocalCollection<Exercise>(`drills:${clientId}`);
+export function CampoLive({ clientId, editId }: { clientId: string; editId?: string }) {
+  const { items, add, update } = useLocalCollection<Exercise>(`drills:${clientId}`);
   const [saved, setSaved] = useState<string | null>(null);
+  const editing = !!editId;
 
   const [cfg, setCfg] = useState({
     name: "",
@@ -155,6 +156,34 @@ export function CampoLive({ clientId }: { clientId: string }) {
   const deleteArrow = (id: string) => { pushHistory(); setArrows((a) => a.filter((x) => x.id !== id)); };
   const clearArrows = () => { if (!arrows.length) return; pushHistory(); setArrows([]); };
 
+  // Riapertura di un esercizio esistente: carica una sola volta drill, posizioni e frecce.
+  const loadedRef = useRef(false);
+  useEffect(() => {
+    if (loadedRef.current || !editId) return;
+    const ex = items.find((x) => x.id === editId && x.drill);
+    if (!ex || !ex.drill) return;
+    loadedRef.current = true;
+    const d = ex.drill;
+    const cat = (CATEGORIES.includes(ex.category as TacticalCategory) ? ex.category : "Possesso") as TacticalCategory;
+    const loaded = {
+      name: ex.name, category: cat, focus: d.focus ?? "",
+      length: d.pitchLengthM, width: d.pitchWidthM, orientation: d.orientation,
+      playersA: d.playersPerTeam, playersB: d.playersB ?? d.playersPerTeam,
+      formationA: d.formationA ?? "Libero", formationB: d.formationB ?? "Libero",
+      jollyCount: d.jollyCount, goalkeepers: d.goalkeepers,
+      teamAColor: d.teamAColor, teamBColor: d.teamBColor,
+      goalType: d.goalType, ballCount: d.ballCount, sectors: d.sectors, channels: d.channels,
+      durationMin: d.durationMin, series: d.series, reps: d.reps, recoverySec: d.recoverySec,
+      intensity: d.intensity, shape: CATEGORY_PRESET[cat].shape,
+    };
+    setCfg(loaded);
+    sigRef.current = structSig(loaded);
+    setEntities(d.entities && d.entities.length ? d.entities : buildEntities(loaded));
+    setArrows(d.arrows ?? []);
+    setRules(d.rules ?? []);
+    setVariants(d.variants ?? []);
+  }, [editId, items]);
+
   const effA = teamCount(cfg.playersA, cfg.formationA);
   const effB = teamCount(cfg.playersB, cfg.formationB);
   const totalPlayers = effA + effB + cfg.jollyCount + (cfg.goalkeepers ? 2 : 0);
@@ -191,17 +220,21 @@ export function CampoLive({ clientId }: { clientId: string }) {
       intensity: cfg.intensity, densityM2: density, focus: cfg.focus, rules, variants,
       entities, arrows,
     };
-    const ex: Exercise = {
-      id: newId(`${clientId}-ex`), clientId,
+    const fields = {
       name: cfg.name.trim() || `Esercitazione ${effA}v${effB}`,
-      domain: "tattico", category: cfg.category,
+      domain: "tattico" as const, category: cfg.category,
       description: `${effA}v${effB}${cfg.jollyCount ? `+${cfg.jollyCount}` : ""}${cfg.goalkeepers ? " + P" : ""}${cfg.formationA !== "Libero" || cfg.formationB !== "Libero" ? ` · moduli ${cfg.formationA}/${cfg.formationB}` : ""} su ${cfg.length}×${cfg.width}m · ${cfg.series}×${cfg.reps} · ${density} m²/giocatore · intensità ${cfg.intensity}.`,
       durationMin: cfg.durationMin, players: `${effA} vs ${effB}`,
       equipment: ["Casacche", `${cfg.ballCount} palloni`, cfg.goalType !== "nessuna" ? cfg.goalType : "coni"],
       tags: ["campo-live"], drill,
     };
-    add(ex);
-    setSaved(ex.name);
+    if (editing && items.some((x) => x.id === editId)) {
+      update(editId!, fields);
+      setSaved(`${fields.name} · aggiornato`);
+    } else {
+      add({ id: newId(`${clientId}-ex`), clientId, ...fields });
+      setSaved(fields.name);
+    }
     setTimeout(() => setSaved(null), 3500);
   };
 
@@ -212,10 +245,13 @@ export function CampoLive({ clientId }: { clientId: string }) {
           <span className="brand-soft-bg brand-text flex h-11 w-11 items-center justify-center rounded-xl"><Icon name="live" size={22} /></span>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Campo Live</h1>
-            <p className="mt-0.5 text-sm text-muted">Disegna l&apos;esercitazione nel dettaglio. Ogni modifica è live.</p>
+            <p className="mt-0.5 text-sm text-muted">{editing ? "Stai modificando un'esercitazione · trascina e disegna i movimenti." : "Disegna l'esercitazione: trascina i giocatori e traccia i movimenti."}</p>
           </div>
         </div>
-        <button onClick={save} className="brand-bg brand-on flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold shadow-sm"><Icon name="layers" size={16} /> Crea esercizio</button>
+        <div className="flex items-center gap-2">
+          {editing && <a href={`/clienti/${clientId}/area-tecnica/campo-live`} className="rounded-xl border border-border px-3 py-2 text-sm font-medium hover:bg-background">Nuovo</a>}
+          <button onClick={save} className="brand-bg brand-on flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold shadow-sm"><Icon name="layers" size={16} /> {editing ? "Salva modifiche" : "Crea esercizio"}</button>
+        </div>
       </div>
 
       {saved && (

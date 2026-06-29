@@ -71,7 +71,8 @@ export function EserciziClient({ clientId, seed, domain, athletes, defaultDate }
           <div key={e.id} className="card card-hover group relative flex flex-col p-4">
             {/* azioni */}
             <div className="absolute right-3 top-3 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <button onClick={() => setEditing(e)} className="rounded-lg border border-border bg-surface p-1.5 text-muted hover:text-foreground" title="Modifica"><Icon name="layers" size={14} /></button>
+              {e.drill && <a href={`/clienti/${clientId}/area-tecnica/campo-live?edit=${e.id}`} className="brand-soft-bg brand-text rounded-lg border border-border p-1.5 hover:brightness-95" title="Apri in Campo Live"><Icon name="live" size={14} /></a>}
+              <button onClick={() => setEditing(e)} className="rounded-lg border border-border bg-surface p-1.5 text-muted hover:text-foreground" title="Modifica scheda"><Icon name="layers" size={14} /></button>
               <button onClick={() => onDelete(e)} className="rounded-lg border border-border bg-surface p-1.5 text-muted hover:border-red-200 hover:text-red-600" title="Elimina"><Icon name="medical" size={14} /></button>
             </div>
 
