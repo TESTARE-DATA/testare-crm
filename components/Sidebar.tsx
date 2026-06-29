@@ -71,30 +71,67 @@ function ClientNav({ clientId, pathname }: { clientId: string; pathname: string 
       </div>
 
       <BrandScope colors={client.colors}>
-        {NAV.filter((item) => isHeader(item) || isGroup(item) || item.slug !== "campionato" || isLeagueSupported(clientId)).map((item) => {
-          if (isHeader(item)) {
-            return <SectionLabel key={item.header}>{item.header}</SectionLabel>;
-          }
-          if (isGroup(item)) {
-            return (
-              <div key={item.group}>
-                <Link
-                  href={sectionHref(clientId, item.slug)}
-                  className="group/g flex items-center gap-1.5 px-3 pb-1 pt-5 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-2 transition-colors hover:text-foreground"
-                >
-                  {item.group}
-                  <Icon name="chevron" size={11} className="opacity-0 transition-opacity group-hover/g:opacity-60" />
-                </Link>
-                {item.children.map((c) => (
-                  <Leaf key={c.slug} clientId={clientId} leaf={c} pathname={pathname} />
-                ))}
-              </div>
-            );
-          }
-          return <Leaf key={item.slug || "home"} clientId={clientId} leaf={item} pathname={pathname} />;
-        })}
+        {buildSections(clientId).map((section) => (
+          <NavSection key={section.key} clientId={clientId} section={section} pathname={pathname} />
+        ))}
       </BrandScope>
     </>
+  );
+}
+
+interface NavSectionData {
+  key: string;
+  header?: string; // etichetta di sezione (assente per voci sciolte senza header)
+  icon?: string; // icona dell'header (solo per i gruppi navigabili)
+  hub?: string; // slug della landing del gruppo (header cliccabile)
+  leaves: NavLeaf[];
+}
+
+/** Normalizza il NAV in sezioni uniformi: ogni header/gruppo raccoglie le sue voci. */
+function buildSections(clientId: string): NavSectionData[] {
+  const sections: NavSectionData[] = [];
+  for (const item of NAV) {
+    if (isHeader(item)) {
+      sections.push({ key: `h:${item.header}`, header: item.header, leaves: [] });
+    } else if (isGroup(item)) {
+      sections.push({ key: `g:${item.group}`, header: item.group, icon: item.icon, hub: item.slug, leaves: item.children });
+    } else {
+      if (item.slug === "campionato" && !isLeagueSupported(clientId)) continue;
+      const last = sections[sections.length - 1];
+      // Le voci sciolte si attaccano a un header semplice (es. Squadra); dopo un gruppo o da sole fanno sezione a sé.
+      if (last && last.header !== undefined && last.hub === undefined) {
+        last.leaves.push(item);
+      } else {
+        sections.push({ key: `l:${item.slug || "home"}`, leaves: [item] });
+      }
+    }
+  }
+  return sections;
+}
+
+function NavSection({ clientId, section, pathname }: { clientId: string; section: NavSectionData; pathname: string }) {
+  const { header, icon, hub, leaves } = section;
+  const leafList = leaves.map((c) => <Leaf key={c.slug || "home"} clientId={clientId} leaf={c} pathname={pathname} />);
+  return (
+    <div className="mt-1 first:mt-0">
+      {hub !== undefined ? (
+        <Link
+          href={sectionHref(clientId, hub)}
+          className="group/g flex items-center gap-2 rounded-lg px-3 pb-1 pt-5 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-2 transition-colors hover:text-foreground"
+        >
+          {icon && <Icon name={icon} size={13} />}
+          {header}
+          <Icon name="chevron" size={12} className="opacity-0 transition-opacity group-hover/g:opacity-60" />
+        </Link>
+      ) : header !== undefined ? (
+        <SectionLabel>{header}</SectionLabel>
+      ) : null}
+      {header !== undefined ? (
+        <div className="ml-[18px] space-y-0.5 border-l border-border pl-2.5">{leafList}</div>
+      ) : (
+        leafList
+      )}
+    </div>
   );
 }
 
