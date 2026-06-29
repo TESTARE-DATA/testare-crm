@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { DrillConfig, DrillIntensity, Exercise, GoalType, PitchOrientation, TacticalCategory } from "@/lib/types";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";
+import type { DrillConfig, DrillEntity, DrillIntensity, Exercise, GoalType, PitchOrientation, TacticalCategory } from "@/lib/types";
 import { useLocalCollection, newId } from "@/lib/store";
 import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui";
@@ -34,6 +34,50 @@ const teamCount = (count: number, formation?: string) =>
 // Suggerimenti rapidi cliccabili per regole/varianti.
 const RULE_SUGGESTIONS = ["Max 2 tocchi", "Gol di prima", "Obbligo cambio gioco", "Fuorigioco attivo", "Pressing a tutto campo", "Sponde di prima", "Gol di testa doppio", "Palla a terra"];
 const VARIANT_SUGGESTIONS = ["Jolly centrale", "Superiorità numerica", "Zona di rifinitura", "Limite di tempo possesso", "Doppia porticina", "Recupero palla = +1 uomo"];
+
+const clamp01 = (v: number) => Math.max(0.01, Math.min(0.99, v));
+const regFor = (shape: Shape) => shape === "attack" ? { a: [0.18, 0.6], b: [0.58, 0.9] }
+  : shape === "blocks" ? { a: [0.06, 0.4], b: [0.6, 0.94] }
+    : { a: [0.03, 0.47], b: [0.53, 0.97] };
+
+// Layout in coordinate NORMALIZZATE (along, across) — base per posizioni editabili.
+function gridN(n: number, a0: number, a1: number): [number, number][] {
+  const c = Math.ceil(Math.sqrt(Math.max(1, n))), r = Math.ceil(Math.max(1, n) / c);
+  const out: [number, number][] = [];
+  for (let i = 0; i < n; i++) { const cc = i % c, rr = Math.floor(i / c); out.push([a0 + ((cc + 1) / (c + 1)) * (a1 - a0), (rr + 1) / (r + 1)]); }
+  return out;
+}
+function formationN(lines: number[], a0: number, a1: number, fromHigh: boolean): [number, number][] {
+  const out: [number, number][] = [];
+  const nl = lines.length;
+  lines.forEach((k, li) => {
+    const t = (li + 1) / (nl + 1);
+    const along = fromHigh ? a1 - t * (a1 - a0) : a0 + t * (a1 - a0);
+    for (let pi = 0; pi < k; pi++) out.push([along, (pi + 1) / (k + 1)]);
+  });
+  return out;
+}
+
+type BuildCfg = { playersA: number; playersB: number; formationA: string; formationB: string; jollyCount: number; goalkeepers: boolean; goalType: GoalType; shape: Shape };
+// Posizioni iniziali automatiche, poi modificabili a mano (drag).
+function buildEntities(c: BuildCfg): DrillEntity[] {
+  const reg = regFor(c.shape);
+  const A = MODULES[c.formationA] ? formationN(MODULES[c.formationA], 0.05, 0.47, false) : gridN(c.playersA, reg.a[0], reg.a[1]);
+  const B = MODULES[c.formationB] ? formationN(MODULES[c.formationB], 0.53, 0.95, true) : gridN(c.playersB, reg.b[0], reg.b[1]);
+  const J = gridN(c.jollyCount, 0.43, 0.57);
+  const out: DrillEntity[] = [];
+  A.forEach(([x, y], i) => out.push({ id: `A${i}`, kind: "A", x, y, label: `${i + 1}` }));
+  B.forEach(([x, y], i) => out.push({ id: `B${i}`, kind: "B", x, y, label: `${i + 1}` }));
+  J.forEach(([x, y], i) => out.push({ id: `J${i}`, kind: "J", x, y, label: "J" }));
+  const showGk = c.goalkeepers && c.goalType !== "nessuna" && c.goalType !== "sponde";
+  if (showGk) {
+    out.push({ id: "GKA", kind: "GK", x: 0.045, y: 0.5, label: "P" });
+    out.push({ id: "GKB", kind: "GK", x: 0.955, y: 0.5, label: "P" });
+  }
+  out.push({ id: "ball", kind: "ball", x: 0.5, y: 0.5, label: "" });
+  return out;
+}
+const structSig = (c: BuildCfg) => `${c.playersA}|${c.playersB}|${c.formationA}|${c.formationB}|${c.jollyCount}|${c.goalkeepers}|${c.goalType}|${c.shape}`;
 
 export function CampoLive({ clientId }: { clientId: string }) {
   const { add } = useLocalCollection<Exercise>(`drills:${clientId}`);
@@ -78,6 +122,23 @@ export function CampoLive({ clientId }: { clientId: string }) {
 
   const set = <K extends keyof typeof cfg>(k: K, v: (typeof cfg)[K]) => setCfg((c) => ({ ...c, [k]: v }));
 
+  // ----- Lavagna: entità posizionabili (drag) + undo/redo -----
+  const [entities, setEntities] = useState<DrillEntity[]>(() => buildEntities(cfg));
+  const sigRef = useRef(structSig(cfg));
+  const [past, setPast] = useState<DrillEntity[][]>([]);
+  const [future, setFuture] = useState<DrillEntity[][]>([]);
+  const pushHistory = () => { setPast((p) => [...p.slice(-39), entities]); setFuture([]); };
+  const undo = () => { if (!past.length) return; setFuture((f) => [entities, ...f]); setEntities(past[past.length - 1]); setPast((p) => p.slice(0, -1)); };
+  const redo = () => { if (!future.length) return; setPast((p) => [...p, entities]); setEntities(future[0]); setFuture((f) => f.slice(1)); };
+  // Cambiando la STRUTTURA (numeri/moduli/jolly/portieri) le posizioni si rigenerano.
+  // Cambiare dimensioni/orientamento NON resetta: le coordinate sono normalizzate.
+  useEffect(() => {
+    const sig = structSig(cfg);
+    if (sig !== sigRef.current) { sigRef.current = sig; setEntities(buildEntities(cfg)); setPast([]); setFuture([]); }
+  }, [cfg.playersA, cfg.playersB, cfg.formationA, cfg.formationB, cfg.jollyCount, cfg.goalkeepers, cfg.goalType, cfg.shape]);
+  const moveEntity = (id: string, x: number, y: number) => setEntities((es) => es.map((e) => (e.id === id ? { ...e, x: clamp01(x), y: clamp01(y) } : e)));
+  const resetPositions = () => { pushHistory(); setEntities(buildEntities(cfg)); };
+
   const effA = teamCount(cfg.playersA, cfg.formationA);
   const effB = teamCount(cfg.playersB, cfg.formationB);
   const totalPlayers = effA + effB + cfg.jollyCount + (cfg.goalkeepers ? 2 : 0);
@@ -112,6 +173,7 @@ export function CampoLive({ clientId }: { clientId: string }) {
       goalType: cfg.goalType, ballCount: cfg.ballCount, sectors: cfg.sectors, channels: cfg.channels,
       durationMin: cfg.durationMin, series: cfg.series, reps: cfg.reps, recoverySec: cfg.recoverySec,
       intensity: cfg.intensity, densityM2: density, focus: cfg.focus, rules, variants,
+      entities,
     };
     const ex: Exercise = {
       id: newId(`${clientId}-ex`), clientId,
@@ -150,7 +212,15 @@ export function CampoLive({ clientId }: { clientId: string }) {
         {/* Campo + KPI — sticky così resta visibile mentre scorri i controlli */}
         <div className="space-y-4 lg:sticky lg:top-[68px]">
           <div className="card overflow-hidden">
-            <Pitch cfg={cfg} density={density} />
+            <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/60 px-3 py-2">
+              <span className="text-[11px] font-semibold text-muted-2">✋ Trascina giocatori e palla</span>
+              <div className="ml-auto flex items-center gap-1">
+                <button onClick={undo} disabled={!past.length} className="rounded-lg border border-border px-2 py-1 text-[12px] font-medium disabled:opacity-40 hover:bg-background" title="Annulla">↶ Annulla</button>
+                <button onClick={redo} disabled={!future.length} className="rounded-lg border border-border px-2 py-1 text-[12px] font-medium disabled:opacity-40 hover:bg-background" title="Ripeti">↷ Ripeti</button>
+                <button onClick={resetPositions} className="rounded-lg border border-border px-2 py-1 text-[12px] font-medium hover:bg-background" title="Riporta le posizioni automatiche">Reset</button>
+              </div>
+            </div>
+            <Pitch cfg={cfg} density={density} entities={entities} onMove={moveEntity} onDragStart={pushHistory} />
             <div className="grid grid-cols-2 gap-px border-t border-border bg-border sm:grid-cols-5">
               <Kpi label="Dimensioni" value={`${cfg.length}×${cfg.width}`} sub="metri" />
               <Kpi label="Giocatori" value={`${totalPlayers}`} sub={`${effA}v${effB}${cfg.jollyCount ? `+${cfg.jollyCount}` : ""}${effA !== effB ? " ⚡" : ""}`} />
@@ -245,7 +315,7 @@ type PitchCfg = {
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
-function Pitch({ cfg, density }: { cfg: PitchCfg; density: number }) {
+function Pitch({ cfg, density, entities, onMove, onDragStart }: { cfg: PitchCfg; density: number; entities: DrillEntity[]; onMove: (id: string, x: number, y: number) => void; onDragStart: () => void }) {
   const PAD = 22;
   const horizontal = cfg.orientation === "orizzontale";
   const ratio = cfg.length / cfg.width; // lungo : corto (in metri)
@@ -270,30 +340,35 @@ function Pitch({ cfg, density }: { cfg: PitchCfg; density: number }) {
   const R = clamp(Math.min((0.46 * LONG) / (cols + 1), SHORT / (rows + 1)) * 0.46, 5, 15);
   const SW = Math.max(1, R * 0.18); // spessore tratti proporzionato
 
-  // layout giocatori in coordinate (along,across)
-  const layout = (n: number, a0: number, a1: number) => {
-    const c = Math.ceil(Math.sqrt(Math.max(1, n))), r = Math.ceil(Math.max(1, n) / c);
-    const out: [number, number][] = [];
-    for (let i = 0; i < n; i++) { const cc = i % c, rr = Math.floor(i / c); out.push(m(a0 + ((cc + 1) / (c + 1)) * (a1 - a0), (rr + 1) / (r + 1))); }
-    return out;
+  // --- Drag delle entità: conversione coordinate e hit-test ---
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const svgPoint = (clientX: number, clientY: number): [number, number] | null => {
+    const svg = svgRef.current; if (!svg) return null;
+    const ctm = svg.getScreenCTM(); if (!ctm) return null;
+    const pt = svg.createSVGPoint(); pt.x = clientX; pt.y = clientY;
+    const sp = pt.matrixTransform(ctm.inverse());
+    return [sp.x, sp.y];
   };
-  // Disposizione a modulo (linee di reparto) per una metà campo.
-  const formLayout = (lines: number[], a0: number, a1: number, fromHigh: boolean): [number, number][] => {
-    const out: [number, number][] = [];
-    const nl = lines.length;
-    lines.forEach((k, li) => {
-      const t = (li + 1) / (nl + 1);
-      const along = fromHigh ? a1 - t * (a1 - a0) : a0 + t * (a1 - a0);
-      for (let pi = 0; pi < k; pi++) out.push(m(along, (pi + 1) / (k + 1)));
-    });
-    return out;
+  const toNorm = (clientX: number, clientY: number): [number, number] => {
+    const sp = svgPoint(clientX, clientY); if (!sp) return [0.5, 0.5];
+    return horizontal ? [(sp[0] - PAD) / LONG, (sp[1] - PAD) / SHORT] : [(sp[1] - PAD) / LONG, (sp[0] - PAD) / SHORT];
   };
-  const reg = cfg.shape === "attack" ? { a: [0.18, 0.6], b: [0.58, 0.9] }
-    : cfg.shape === "blocks" ? { a: [0.06, 0.4], b: [0.6, 0.94] }
-      : { a: [0.03, 0.47], b: [0.53, 0.97] };
-  const teamA = MODULES[cfg.formationA] ? formLayout(MODULES[cfg.formationA], 0.05, 0.47, false) : layout(cfg.playersA, reg.a[0], reg.a[1]);
-  const teamB = MODULES[cfg.formationB] ? formLayout(MODULES[cfg.formationB], 0.53, 0.95, true) : layout(cfg.playersB, reg.b[0], reg.b[1]);
-  const jolly = layout(cfg.jollyCount, 0.43, 0.57);
+  const onPointerDown = (ev: RPointerEvent<SVGSVGElement>) => {
+    const sp = svgPoint(ev.clientX, ev.clientY); if (!sp) return;
+    let best: string | null = null, bd = (R * 1.7) ** 2;
+    for (const e of entities) { const [px, py] = m(e.x, e.y); const d = (px - sp[0]) ** 2 + (py - sp[1]) ** 2; if (d < bd) { bd = d; best = e.id; } }
+    if (best) { onDragStart(); setDragId(best); try { svgRef.current?.setPointerCapture(ev.pointerId); } catch { /* noop */ } ev.preventDefault(); }
+  };
+  const onPointerMove = (ev: RPointerEvent<SVGSVGElement>) => {
+    if (!dragId) return;
+    const [a, x] = toNorm(ev.clientX, ev.clientY);
+    onMove(dragId, a, x);
+  };
+  const endDrag = (ev: RPointerEvent<SVGSVGElement>) => {
+    if (dragId) { try { svgRef.current?.releasePointerCapture(ev.pointerId); } catch { /* noop */ } }
+    setDragId(null);
+  };
 
   const stripes = 8;
   const showMarks = cfg.goalType !== "nessuna" && cfg.goalType !== "sponde";
@@ -327,7 +402,7 @@ function Pitch({ cfg, density }: { cfg: PitchCfg; density: number }) {
   const sp0 = m(0.1, 0.5), sp1 = m(0.9, 0.5);
 
   return (
-    <svg viewBox={`0 0 ${vbW} ${vbH}`} className="w-full" style={{ maxHeight: 500 }}>
+    <svg ref={svgRef} viewBox={`0 0 ${vbW} ${vbH}`} className="w-full select-none" style={{ maxHeight: 500, touchAction: "none", cursor: dragId ? "grabbing" : "default" }} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
       <defs>
         <radialGradient id="grass" cx="50%" cy="38%" r="75%">
           <stop offset="0%" stopColor="#2fab63" /><stop offset="100%" stopColor="#1c8f4f" />
@@ -383,16 +458,16 @@ function Pitch({ cfg, density }: { cfg: PitchCfg; density: number }) {
         return <g key={`b${i}`}><ellipse cx={b[0]} cy={b[1] + br * 0.7} rx={br * 0.8} ry={br * 0.3} fill="#000" opacity={0.2} /><circle cx={b[0]} cy={b[1]} r={br} fill="#fff" stroke="#0b0b0c" strokeWidth={0.5} /><circle cx={b[0]} cy={b[1]} r={br * 0.42} fill="#0b0b0c" /></g>;
       })}
 
-      {/* portieri */}
-      {cfg.goalkeepers && showMarks && <>
-        <Player {...gk(m(0.045, 0.5), R)} />
-        <Player {...gk(m(0.955, 0.5), R)} />
-      </>}
-
-      {/* giocatori */}
-      {teamA.map((p, i) => <Player key={`a${i}`} x={p[0]} y={p[1]} r={R} sw={SW} color={cfg.teamAColor} label={`${i + 1}`} />)}
-      {teamB.map((p, i) => <Player key={`b${i}`} x={p[0]} y={p[1]} r={R} sw={SW} color={cfg.teamBColor} label={`${i + 1}`} />)}
-      {jolly.map((p, i) => <Player key={`j${i}`} x={p[0]} y={p[1]} r={R} sw={SW} color="#facc15" label="J" />)}
+      {/* entità trascinabili: giocatori, portieri, jolly, palla */}
+      {entities.map((e) => {
+        const [px, py] = m(e.x, e.y);
+        if (e.kind === "ball") {
+          const br = Math.max(3, R * 0.5);
+          return <g key={e.id} style={{ cursor: "grab" }}><ellipse cx={px} cy={py + br * 0.7} rx={br * 0.85} ry={br * 0.32} fill="#000" opacity={0.22} /><circle cx={px} cy={py} r={br} fill="#fff" stroke="#0b0b0c" strokeWidth={0.6} /><circle cx={px} cy={py} r={br * 0.42} fill="#0b0b0c" /></g>;
+        }
+        const color = e.kind === "A" ? cfg.teamAColor : e.kind === "B" ? cfg.teamBColor : "#facc15";
+        return <Player key={e.id} x={px} y={py} r={R} sw={SW} color={color} label={e.label} active={dragId === e.id} />;
+      })}
 
       {/* densità */}
       <g>
@@ -403,12 +478,11 @@ function Pitch({ cfg, density }: { cfg: PitchCfg; density: number }) {
   );
 }
 
-function gk(p: [number, number], R: number) { return { x: p[0], y: p[1], r: R, sw: Math.max(1, R * 0.18), color: "#facc15", label: "P" }; }
-
-function Player({ x, y, color, label, r, sw }: { x: number; y: number; color: string; label: string; r: number; sw: number }) {
+function Player({ x, y, color, label, r, sw, active }: { x: number; y: number; color: string; label: string; r: number; sw: number; active?: boolean }) {
   const dark = isDark(color);
   return (
-    <g>
+    <g style={{ cursor: "grab" }}>
+      {active && <circle cx={x} cy={y} r={r + sw + 2} fill="none" stroke="#fff" strokeWidth={1.4} strokeDasharray="3 3" opacity={0.9} />}
       <ellipse cx={x} cy={y + r * 0.62} rx={r * 0.82} ry={r * 0.3} fill="#06311c" opacity={0.28} />
       <circle cx={x} cy={y} r={r} fill={color} stroke="#fff" strokeWidth={sw} filter="url(#psh)" />
       <circle cx={x} cy={y - r * 0.34} r={r * 0.6} fill="#fff" opacity={0.16} />

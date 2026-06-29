@@ -164,6 +164,23 @@ export type GoalType = "porte" | "mini-porte" | "porticine" | "sponde" | "nessun
 export type PitchOrientation = "orizzontale" | "verticale";
 export type DrillIntensity = "bassa" | "media" | "alta";
 
+/** Entità posizionabile sulla lavagna (giocatore o palla). Coordinate normalizzate
+ *  0..1: x = asse lungo (along), y = asse corto (across), indipendenti da
+ *  dimensioni/orientamento del campo. */
+export interface DrillEntity {
+  id: string;
+  kind: "A" | "B" | "J" | "GK" | "ball";
+  x: number;
+  y: number;
+  label: string;
+}
+/** Freccia/movimento disegnato sulla lavagna (coordinate normalizzate 0..1). */
+export interface DrillArrow {
+  id: string;
+  kind: "corsa" | "passaggio" | "conduzione";
+  x1: number; y1: number; x2: number; y2: number;
+}
+
 /** Configurazione disegnata in Campo Live (solo esercizi tattici/campo). */
 export interface DrillConfig {
   pitchLengthM: number;
@@ -189,6 +206,9 @@ export interface DrillConfig {
   reps: number;
   recoverySec: number; // recupero tra ripetizioni
   intensity: DrillIntensity;
+  // Lavagna: posizioni e movimenti disegnati a mano (se assenti, layout automatico).
+  entities?: DrillEntity[];
+  arrows?: DrillArrow[];
   // Derivati / note
   densityM2: number;
   focus: string;
