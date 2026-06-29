@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Athlete, CalendarEvent, DaySlot, PhysioDiaryEntry, SessionType, TemplateDomain, ExerciseDomain, WorkAssignment } from "@/lib/types";
 import { SESSION_META, SESSION_TYPES } from "@/lib/sessions";
 import { TYPE_LOAD, dayLoad, mdCode, mdColor } from "@/lib/microcycle";
@@ -25,9 +25,16 @@ const THERAPY_COLOR = "var(--med)";
 const VISITA_COLOR = "#7c3aed";
 
 const DOW = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
-const TODAY = "2026-06-19";
+// Data di riferimento dei dati seed: fallback deterministico per SSR/hydration.
+// Dopo il mount `today` diventa la data reale di oggi (vedi CalendarClient).
+const SEED_TODAY = "2026-06-19";
 const DAY = 86400000;
 const toISO = (d: Date) => d.toISOString().slice(0, 10);
+/** Data odierna reale (componenti locali) nel formato YYYY-MM-DD. */
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 function mondayOf(iso: string, weekOffset = 0) {
   const d = new Date(iso + "T00:00:00");
@@ -58,6 +65,9 @@ export function CalendarClient({
   const { items: localTherapies } = useDbCollection<PhysioDiaryEntry>(`physio-diary:${clientId}`, seedTherapies);
   const [view, setView] = useState<"microciclo" | "mese">("microciclo");
   const [weekOffset, setWeekOffset] = useState(0);
+  // Calendario "live": parte dal seed (SSR) e dopo il mount si allinea a oggi.
+  const [today, setToday] = useState(SEED_TODAY);
+  useEffect(() => setToday(todayISO()), []);
   const [modalDate, setModalDate] = useState<string | null>(null);
   const [selected, setSelected] = useState<SessionEntry | null>(null);
   const [picker, setPicker] = useState<string | null>(null); // data per cui assegnare lavoro
@@ -123,7 +133,7 @@ export function CalendarClient({
             <ViewBtn active={view === "microciclo"} onClick={() => setView("microciclo")} label="Microciclo" />
             <ViewBtn active={view === "mese"} onClick={() => setView("mese")} label="Mese" />
           </div>
-          <button onClick={() => setPicker(TODAY)} className="brand-bg brand-on flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold shadow-sm"><Icon name="plus" size={16} /> Assegna</button>
+          <button onClick={() => setPicker(today)} className="brand-bg brand-on flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold shadow-sm"><Icon name="plus" size={16} /> Assegna</button>
         </div>
       </div>
 
@@ -136,12 +146,12 @@ export function CalendarClient({
 
       {view === "microciclo" ? (
         <Microciclo
-          weekOffset={weekOffset} setWeekOffset={setWeekOffset}
+          today={today} weekOffset={weekOffset} setWeekOffset={setWeekOffset}
           squadraByDay={squadraByDay} otherByDay={otherByDay} matchDates={matchDates}
           onEvent={openEvent} onAssignment={openAssignment} onAssign={setPicker}
         />
       ) : (
-        <Mese squadraByDay={squadraByDay} otherByDay={otherByDay} onPick={setModalDate} onEvent={openEvent} onAssignment={openAssignment} />
+        <Mese today={today} squadraByDay={squadraByDay} otherByDay={otherByDay} onPick={setModalDate} onEvent={openEvent} onAssignment={openAssignment} />
       )}
 
       {modalDate && (
@@ -164,13 +174,13 @@ export function CalendarClient({
 
 // ---- Vista MICROCICLO -------------------------------------------------------
 function Microciclo({
-  weekOffset, setWeekOffset, squadraByDay, otherByDay, matchDates, onEvent, onAssignment, onAssign,
+  today, weekOffset, setWeekOffset, squadraByDay, otherByDay, matchDates, onEvent, onAssignment, onAssign,
 }: {
-  weekOffset: number; setWeekOffset: (n: number) => void;
+  today: string; weekOffset: number; setWeekOffset: (n: number) => void;
   squadraByDay: Map<string, CalendarEvent[]>; otherByDay: Map<string, Other[]>; matchDates: string[];
   onEvent: (e: CalendarEvent) => void; onAssignment: (a: WorkAssignment) => void; onAssign: (d: string) => void;
 }) {
-  const monday = mondayOf(TODAY, weekOffset);
+  const monday = mondayOf(today, weekOffset);
   const days = Array.from({ length: 7 }, (_, i) => toISO(new Date(monday.getTime() + i * DAY)));
   const loads = days.map((d) => dayLoad(squadraByDay.get(d) ?? []));
   const weekLoad = loads.reduce((s, l) => s + l, 0);
@@ -201,10 +211,14 @@ function Microciclo({
           const list = squadraByDay.get(d) ?? [];
           const others = otherByDay.get(d) ?? [];
           const md = mdCode(d, matchDates);
-          const isToday = d === TODAY;
+          const isToday = d === today;
           const load = loads[i];
           return (
-            <div key={d} className={`card flex flex-col overflow-hidden ${isToday ? "ring-2 ring-[var(--brand-primary)]" : ""}`}>
+            <div
+              key={d}
+              className={`card flex flex-col overflow-hidden ${isToday ? "border-[var(--brand-primary)]" : ""}`}
+              style={isToday ? { boxShadow: "0 0 0 2px var(--brand-primary), 0 10px 28px -10px var(--brand-primary)" } : undefined}
+            >
               <div className="flex items-center justify-between px-3 pt-3">
                 <div>
                   <div className="text-[11px] font-medium text-muted-2">{DOW[i]} {d.slice(8, 10)}</div>
@@ -270,8 +284,8 @@ function Microciclo({
 }
 
 // ---- Vista MESE -------------------------------------------------------------
-function Mese({ squadraByDay, otherByDay, onPick, onEvent, onAssignment }: { squadraByDay: Map<string, CalendarEvent[]>; otherByDay: Map<string, Other[]>; onPick: (d: string) => void; onEvent: (e: CalendarEvent) => void; onAssignment: (a: WorkAssignment) => void }) {
-  const start = mondayOf(TODAY, 0);
+function Mese({ today, squadraByDay, otherByDay, onPick, onEvent, onAssignment }: { today: string; squadraByDay: Map<string, CalendarEvent[]>; otherByDay: Map<string, Other[]>; onPick: (d: string) => void; onEvent: (e: CalendarEvent) => void; onAssignment: (a: WorkAssignment) => void }) {
+  const start = mondayOf(today, 0);
   const days = Array.from({ length: 35 }, (_, i) => toISO(new Date(start.getTime() + i * DAY)));
   return (
     <div className="card overflow-hidden">
@@ -282,9 +296,9 @@ function Mese({ squadraByDay, otherByDay, onPick, onEvent, onAssignment }: { squ
         {days.map((day) => {
           const list = squadraByDay.get(day) ?? [];
           const others = otherByDay.get(day) ?? [];
-          const isToday = day === TODAY;
+          const isToday = day === today;
           return (
-            <button key={day} onClick={() => onPick(day)} className="group min-h-28 border-b border-r border-border p-1.5 text-left align-top last:border-r-0 hover:bg-background">
+            <button key={day} onClick={() => onPick(day)} className={`group relative min-h-28 border-b border-r border-border p-1.5 text-left align-top last:border-r-0 hover:bg-background ${isToday ? "ring-2 ring-inset ring-[var(--brand-primary)]" : ""}`}>
               <div className="mb-1 flex items-center justify-between px-1">
                 <span className={`text-[12px] font-semibold ${isToday ? "brand-text" : "text-muted-2"}`}>{day.slice(8, 10)}</span>
                 {isToday && <span className="brand-bg h-1.5 w-1.5 rounded-full" />}
