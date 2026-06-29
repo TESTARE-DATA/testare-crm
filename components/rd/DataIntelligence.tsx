@@ -6,6 +6,7 @@ import type { StaffMember, PlayerRole } from "@/lib/types";
 import { useLocalCollection, newId } from "@/lib/store";
 import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui";
+import { InjuryPrognosis } from "@/components/rd/InjuryPrognosis";
 
 // ---- Helpers statistici (puri, lato client) --------------------------------
 function mean(a: number[]) { return a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0; }
@@ -44,7 +45,7 @@ interface SavedReport {
   lines: string[];
 }
 
-type Tab = "correlazioni" | "insight" | "report";
+type Tab = "correlazioni" | "insight" | "prognosi" | "report";
 
 export function DataIntelligence({
   clientName,
@@ -81,6 +82,7 @@ export function DataIntelligence({
         {([
           ["correlazioni", "chart", "Correlazioni"],
           ["insight", "sparkle", "Insight"],
+          ["prognosi", "medical", "Prognosi"],
           ["report", "clipboard", "Report"],
         ] as [Tab, string, string][]).map(([key, icon, label]) => (
           <button
@@ -110,6 +112,7 @@ export function DataIntelligence({
         />
       )}
       {tab === "insight" && <InsightsView insights={insights} projects={projects} />}
+      {tab === "prognosi" && <InjuryPrognosis />}
       {tab === "report" && (
         <ReportBuilder
           clientName={clientName}
