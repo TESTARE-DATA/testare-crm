@@ -77,19 +77,17 @@ function ClientNav({ clientId, pathname }: { clientId: string; pathname: string 
           }
           if (isGroup(item)) {
             return (
-              <div key={item.group} className="mt-3">
+              <div key={item.group}>
                 <Link
                   href={sectionHref(clientId, item.slug)}
-                  className="group/g flex items-center gap-2 rounded-lg px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.13em] text-muted-2 transition-colors hover:text-foreground"
+                  className="group/g flex items-center gap-1.5 px-3 pb-1 pt-5 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-2 transition-colors hover:text-foreground"
                 >
-                  <Icon name={item.icon} size={13} /> {item.group}
-                  <Icon name="chevron" size={12} className="opacity-0 transition-opacity group-hover/g:opacity-60" />
+                  {item.group}
+                  <Icon name="chevron" size={11} className="opacity-0 transition-opacity group-hover/g:opacity-60" />
                 </Link>
-                <div className="ml-[18px] space-y-0.5 border-l border-border pl-2.5">
-                  {item.children.map((c) => (
-                    <Leaf key={c.slug} clientId={clientId} leaf={c} pathname={pathname} />
-                  ))}
-                </div>
+                {item.children.map((c) => (
+                  <Leaf key={c.slug} clientId={clientId} leaf={c} pathname={pathname} />
+                ))}
               </div>
             );
           }
