@@ -133,7 +133,7 @@ function FvSection({ fv, prev, prevLabel }: { fv: FvProfile; prev?: FvProfile; p
           </div>
         )}
       </div>
-      {fv.chartConfig && <FvChartJs config={fv.chartConfig} />}
+      <FvChartJs fv={fv} />
       {fv.profile && <p className="mt-2 text-[12px] text-foreground/80"><span className="font-semibold">Profilo:</span> {fv.profile}{prev && prevLabel ? <span className="text-muted-2"> · variazione rispetto al {prevLabel}</span> : null}</p>}
     </div>
   );
