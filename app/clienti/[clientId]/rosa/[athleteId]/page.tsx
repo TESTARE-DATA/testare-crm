@@ -2,13 +2,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { getAthlete, getAthletes, getAthleteTests, getEvents, getGps, getMedical, getSeedAttendance, getTeamAverageKpi } from "@/lib/data";
+import { getAthletes, getAthleteTests, getEvents, getGps, getMedical, getSeedAttendance, getTeamAverageKpi } from "@/lib/data";
+import { getResolvedAthletes } from "@/lib/server-roster";
 import { getAthleteMeasurements } from "@/lib/measurements";
 import { getAthleteReadiness, WELLNESS, SCALE_MAX } from "@/lib/readiness";
 import { sectionHref } from "@/lib/nav";
 import { KPI_LABEL, delta, flagsOf, tierOf, TIER_META, clusterOf } from "@/lib/perf";
 import { readCollection } from "@/lib/db/collections";
-import type { AthleteTestSession, MedicalClosure, MedicalRecord, PhysicalKpi } from "@/lib/types";
+import type { Athlete, AthleteTestSession, MedicalClosure, MedicalRecord, PhysicalKpi } from "@/lib/types";
 import type { MedicalPhaseOverride } from "@/lib/medical-flow";
 import { AthleteHeader } from "@/components/rosa/AthleteHeader";
 import { AthleteAnthropometrics } from "@/components/rosa/AthleteAnthropometrics";
@@ -28,8 +29,17 @@ const KEYS: (keyof PhysicalKpi)[] = ["forza", "potenza", "reattivita", "simmetri
 export default async function AthletePage({ params }: { params: Promise<{ clientId: string; athleteId: string }> }) {
   const { clientId, athleteId } = await params;
   const client = getClient(clientId);
-  const a = getAthlete(athleteId);
-  if (!client || !a || a.clientId !== clientId) notFound();
+  if (!client) notFound();
+  // Rosa COMPLETA lato server: seed (con override) − atleti nascosti + atleti
+  // AGGIUNTI dall'utente (collezione DB athletes:<clientId>). Così la scheda si
+  // apre anche per un atleta creato dalla Rosa, esattamente come fa la lista.
+  const [resolved, addedAthletes] = await Promise.all([
+    getResolvedAthletes(clientId).catch(() => getAthletes(clientId)),
+    readCollection<Athlete>(`athletes:${clientId}`).catch(() => [] as Athlete[]),
+  ]);
+  const roster = [...resolved, ...addedAthletes];
+  const a = roster.find((x) => x.id === athleteId);
+  if (!a || a.clientId !== clientId) notFound();
 
   const p = a.profile;
   const flags = flagsOf(p);
@@ -216,11 +226,11 @@ export default async function AthletePage({ params }: { params: Promise<{ client
 
       {/* 5 · Registro presenze */}
       <div className="mb-6">
-        <AthleteAttendance clientId={clientId} athleteId={athleteId} athletes={getAthletes(clientId)} seedEvents={getEvents(clientId)} seedAttendance={getSeedAttendance(clientId)} />
+        <AthleteAttendance clientId={clientId} athleteId={athleteId} athletes={roster} seedEvents={getEvents(clientId)} seedAttendance={getSeedAttendance(clientId)} />
       </div>
 
       {/* 6 · Agenda dell'atleta */}
-      <AthleteAgenda clientId={clientId} athleteId={athleteId} athletes={getAthletes(clientId)} seedEvents={getEvents(clientId)} seedMedical={medical} initialMedical={dbMedical} initialClosures={dbClosures} initialPhase={dbPhase} />
+      <AthleteAgenda clientId={clientId} athleteId={athleteId} athletes={roster} seedEvents={getEvents(clientId)} seedMedical={medical} initialMedical={dbMedical} initialClosures={dbClosures} initialPhase={dbPhase} />
     </div>
   );
 }
