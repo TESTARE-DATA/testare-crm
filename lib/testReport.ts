@@ -14,7 +14,7 @@
 // ============================================================================
 
 import { parse, type HTMLElement } from "node-html-parser";
-import type { FvPoint, FvProfile, TestKpi } from "./types";
+import type { FvProfile, TestKpi } from "./types";
 
 export interface ParsedTest {
   name: string;
@@ -64,30 +64,22 @@ function pureValue(el: HTMLElement): string {
   const direct = el.childNodes.filter((n) => n.nodeType === 3).map((n) => n.text).join("");
   return direct.replace(/[↑↓→\s]/g, "").trim();
 }
-/** Estrae il Profilo Carico-Velocità da un blocco: pendenza, interpretazione e
- *  punti della curva (misurati, retta di regressione, 1RM) dal data-chart-config.
- *  Restituisce undefined se la sessione non ha eseguito il test F-V. */
+/** Estrae il Profilo Carico-Velocità da un blocco: la pendenza, l'interpretazione
+ *  e il CONFIG Chart.js ESATTO (data-chart-config) — che contiene già la retta
+ *  corrente, i punti misurati, l'1RM e (se c'è) la retta della sessione precedente
+ *  tratteggiata per la variazione. Restituisce undefined se il test F-V non è stato
+ *  eseguito in quella sessione. */
 function extractFv(block: HTMLElement): FvProfile | undefined {
+  const chartEl = block.querySelector("[data-chart-config]");
+  const raw = chartEl?.getAttribute("data-chart-config") ?? "";
+  let chartConfig = "";
+  if (raw) { try { const cfg = JSON.parse(raw); if (cfg?.data?.datasets?.length) chartConfig = JSON.stringify(cfg); } catch { /* config non valida */ } }
   const t = txt(block);
   const slopeM = t.match(/Pendenza:\s*(-?[\d.]+)/i);
   const profM = t.match(/Profilo:\s*(.+)$/i);
-  let measured: FvPoint[] = [], line: FvPoint[] = [], oneRm: FvPoint | null = null;
-  const chartEl = block.querySelector("[data-chart-config]");
-  if (chartEl) {
-    try {
-      const cfg = JSON.parse(chartEl.getAttribute("data-chart-config") || "");
-      for (const ds of cfg?.data?.datasets ?? []) {
-        const pts: FvPoint[] = (ds.data ?? []).filter((p: unknown): p is FvPoint => !!p && typeof (p as FvPoint).x === "number" && typeof (p as FvPoint).y === "number").map((p: FvPoint) => ({ x: p.x, y: p.y }));
-        const label = String(ds.label ?? "");
-        if (/misurat/i.test(label)) measured = pts;
-        else if (/^reg/i.test(label)) line = pts;
-        else if (/1\s*rm/i.test(label)) oneRm = pts[0] ?? null;
-      }
-    } catch { /* config non valida → niente curva */ }
-  }
   const slope = slopeM ? Number(slopeM[1]) : null;
-  if (!measured.length && !line.length && slope == null) return undefined;
-  return { slope: slope != null && Number.isFinite(slope) ? slope : null, profile: profM ? profM[1].trim() : "", measured, line, oneRm };
+  if (!chartConfig && slope == null) return undefined;
+  return { slope: slope != null && Number.isFinite(slope) ? slope : null, profile: profM ? profM[1].trim() : "", chartConfig };
 }
 
 function isHidden(el: HTMLElement, stop: HTMLElement): boolean {
