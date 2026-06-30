@@ -51,7 +51,7 @@ export default async function TestHub({ params }: { params: Promise<{ clientId: 
           </div>
           <h3 className="mt-4 text-xl font-bold">Misurazioni interne</h3>
           <p className="mt-1 flex-1 text-sm text-muted">
-            Misure e test rapidi rilevati dallo staff durante l'anno — peso, plicometria, sprint, salti,
+            Misure e test rapidi rilevati dallo staff durante l&apos;anno — peso, plicometria, sprint, salti,
             mobilità — da annotare e monitorare nel tempo, atleta per atleta.
           </p>
           <div className="mt-4 flex flex-wrap gap-1.5">

@@ -14,6 +14,7 @@ import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { PageHeader, StatCard, Panel } from "@/components/ui";
 import { AttendanceRecorder } from "@/components/attendance/AttendanceRecorder";
+import { type CustomObjective } from "@/components/programmazione/QuickCreate";
 
 const REF_TODAY = "2026-06-19"; // riferimento "oggi" coerente col calendario
 const DAY = 86400000;
@@ -28,6 +29,7 @@ export function RegistroClient({ clientId, athletes, seedEvents, seedAttendance,
   const isPres = view === "presenze";
   const { items: localEvents } = useLocalCollection<CalendarEvent>(`events:${clientId}`);
   const { items: assignments } = useLocalCollection<WorkAssignment>(`assignments:${clientId}`);
+  const { items: customObjs } = useLocalCollection<CustomObjective>(`custom-objectives:${clientId}`);
   const { merged: attendance } = useAttendance(clientId, seedAttendance);
   const { photos } = usePhotos(clientId);
   const [selected, setSelected] = useState<SessionEntry | null>(null);
@@ -55,7 +57,9 @@ export function RegistroClient({ clientId, athletes, seedEvents, seedAttendance,
   }, [period]);
   const periodSessions = useMemo(() => done.filter((s) => s.date >= pStart && s.date <= pEnd), [done, pStart, pEnd]);
 
-  const stats = useMemo(() => computeStats(periodSessions, attendance, athletes), [periodSessions, attendance, athletes]);
+  // Metadati degli obiettivi personalizzati (acr/colore scelti dall'utente; macro-area "Personalizzati").
+  const customMeta = useMemo(() => new Map(customObjs.map((c) => [c.label, { acr: c.acr, color: c.color, group: "Personalizzati" }])), [customObjs]);
+  const stats = useMemo(() => computeStats(periodSessions, attendance, athletes, customMeta), [periodSessions, attendance, athletes, customMeta]);
   const attById = useMemo(() => new Map(attendance.map((r) => [r.id, r])), [attendance]);
 
   const maxObj = Math.max(1, ...stats.byObjective.map((o) => o.count));

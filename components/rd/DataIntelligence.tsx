@@ -48,6 +48,7 @@ interface SavedReport {
 type Tab = "correlazioni" | "insight" | "prognosi" | "report";
 
 export function DataIntelligence({
+  clientId,
   clientName,
   metrics,
   matrix,
@@ -55,6 +56,7 @@ export function DataIntelligence({
   staff,
   projects,
 }: {
+  clientId: string;
   clientName: string;
   metrics: MetricDef[];
   matrix: AthletePoint[];
@@ -115,6 +117,7 @@ export function DataIntelligence({
       {tab === "prognosi" && <InjuryPrognosis />}
       {tab === "report" && (
         <ReportBuilder
+          clientId={clientId}
           clientName={clientName}
           matrix={matrix}
           metrics={metrics}
@@ -387,8 +390,9 @@ const REPORT_TYPES = [
 ] as const;
 
 function ReportBuilder({
-  clientName, matrix, insights, staff, corr,
+  clientId, clientName, matrix, insights, staff, corr,
 }: {
+  clientId: string;
   clientName: string;
   matrix: AthletePoint[];
   metrics: MetricDef[];
@@ -396,7 +400,7 @@ function ReportBuilder({
   staff: StaffMember[];
   corr: { r: number; xDef?: MetricDef; yDef?: MetricDef; points: { x: number; y: number; name: string }[] };
 }) {
-  const reports = useLocalCollection<SavedReport>(`reports`);
+  const reports = useLocalCollection<SavedReport>(`reports:${clientId}`);
   const [type, setType] = useState<(typeof REPORT_TYPES)[number]["id"]>("carico");
   const [athleteId, setAthleteId] = useState(matrix[0]?.id ?? "");
   const [recipients, setRecipients] = useState<string[]>(staff[0] ? [staff[0].name] : []);

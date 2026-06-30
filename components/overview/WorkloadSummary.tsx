@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { CalendarEvent } from "@/lib/types";
 import { sectionHref } from "@/lib/nav";
+import { isLeagueSupported } from "@/lib/leagues";
 import { Icon } from "@/components/Icon";
 import { CountUp } from "@/components/overview/CountUp";
 
@@ -31,6 +32,9 @@ export function WorkloadSummary({ clientId, events, today }: { clientId: string;
   const campoPct = totalTraining ? Math.round((campo / totalTraining) * 100) : 0;
 
   const cal = sectionHref(clientId, "calendario");
+  // Le partite linkano al Campionato solo se la lega è configurata (come la Sidebar);
+  // altrimenti (es. Empoli, Serie B non supportata) si rimanda al Calendario.
+  const matchesHref = isLeagueSupported(clientId) ? sectionHref(clientId, "campionato") : cal;
 
   return (
     <div className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
@@ -62,7 +66,7 @@ export function WorkloadSummary({ clientId, events, today }: { clientId: string;
       <div className="grid gap-3 sm:grid-cols-3">
         <WorkTile href={cal} icon="pitch" color={CAMPO} label="In campo" value={campo} sub={`${totalTraining ? Math.round((campo / totalTraining) * 100) : 0}% del lavoro`} />
         <WorkTile href={cal} icon="dumbbell" color={PALESTRA} label="In palestra" value={palestra} sub={`${totalTraining ? Math.round((palestra / totalTraining) * 100) : 0}% del lavoro`} />
-        <WorkTile href={sectionHref(clientId, "campionato")} icon="trophy" color={PARTITA} label="Partite" value={matches} sub="disputate" />
+        <WorkTile href={matchesHref} icon="trophy" color={PARTITA} label="Partite" value={matches} sub="disputate" />
       </div>
     </div>
   );

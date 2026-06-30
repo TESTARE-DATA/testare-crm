@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { WorkAssignment, Athlete } from "@/lib/types";
+import type { WorkAssignment, Athlete, Exercise, SessionTemplate } from "@/lib/types";
 import { tierOf } from "@/lib/perf";
 import { useLocalCollection } from "@/lib/store";
 import { useRoster } from "@/lib/useRoster";
@@ -143,6 +143,21 @@ function AthleteDetail({ clientId, athlete: a, readiness, testDate, assignments,
   onBack: () => void; onRemove: (id: string) => void; onUpdate: (id: string, patch: Partial<WorkAssignment>) => void;
 }) {
   const { photos } = usePhotos(clientId);
+  // Includi esercizi (Campo Live / QuickCreate) e template creati dall'utente, così
+  // l'assegnazione dalla scheda atleta vede gli stessi contenuti del Calendario.
+  const { items: drills } = useLocalCollection<Exercise>(`drills:${clientId}`);
+  const { items: localTpls } = useLocalCollection<SessionTemplate>(`templates:${clientId}`);
+  const allExercises: ExRef[] = useMemo(() => [
+    ...exercises,
+    ...drills.map((d) => ({ id: d.id, name: d.name, domain: String(d.domain), durationMin: d.durationMin, category: String(d.category) })),
+  ], [exercises, drills]);
+  const allTemplates: TplRef[] = useMemo(() => [
+    ...templates,
+    ...localTpls.map((t) => ({
+      id: t.id, name: t.name, domain: String(t.domain), durationMin: t.estimated.durationMin, rpe: t.estimated.internalRpe,
+      items: t.exerciseIds.map((id) => { const ex = allExercises.find((e) => e.id === id); return { exerciseId: id, name: ex?.name ?? id, durationMin: ex?.durationMin }; }),
+    })),
+  ], [templates, localTpls, allExercises]);
   const [picker, setPicker] = useState(false);
   const [tgt, setTgt] = useState<AssignTarget | null>(null);
   const [workout, setWorkout] = useState<WorkAssignment | null>(null);
@@ -150,7 +165,9 @@ function AthleteDetail({ clientId, athlete: a, readiness, testDate, assignments,
   const [histEx, setHistEx] = useState(histExIds[0] ?? "");
   const [metric, setMetric] = useState<"kg" | "vol">("kg");
   const histRows = useMemo(() => history.filter((h) => h.exerciseId === histEx).sort((x, y) => x.date.localeCompare(y.date)), [history, histEx]);
-  const histData = histRows.map((h) => ({ label: fmtShort(h.date), value: metric === "kg" ? h.kg : h.sets * h.reps * h.kg }));
+  // In modalità Volume i valori sono tonnellaggio in TONNELLATE, coerenti con le
+  // MiniStat sopra (e con l'unità "t" passata al grafico): niente "3000 kg" vs "3.0 t".
+  const histData = histRows.map((h) => ({ label: fmtShort(h.date), value: metric === "kg" ? h.kg : Math.round((h.sets * h.reps * h.kg) / 100) / 10 }));
   const histStats = useMemo(() => {
     if (histRows.length === 0) return null;
     const prRow = histRows.reduce((m, h) => (h.kg > m.kg ? h : m), histRows[0]);
@@ -175,7 +192,9 @@ function AthleteDetail({ clientId, athlete: a, readiness, testDate, assignments,
 
   const series = useMemo(() => {
     const out: { date: string; sRPE: number }[] = [];
-    for (let d = 9; d >= 0; d--) { const ds = new Date(Date.parse(TODAY + "T00:00:00") - d * DAY).toISOString().slice(0, 10); out.push({ date: ds, sRPE: gps.filter((g) => g.date === ds).reduce((s, g) => s + g.sRPE, 0) }); }
+    // Base in UTC ("...Z") per allinearsi alle date GPS (generate in UTC): senza la
+    // Z, in fuso UTC+ ogni barra mostrerebbe l'sRPE del giorno precedente.
+    for (let d = 9; d >= 0; d--) { const ds = new Date(Date.parse(TODAY + "T00:00:00Z") - d * DAY).toISOString().slice(0, 10); out.push({ date: ds, sRPE: gps.filter((g) => g.date === ds).reduce((s, g) => s + g.sRPE, 0) }); }
     return out;
   }, [gps]);
   const maxS = Math.max(1, ...series.map((s) => s.sRPE));
@@ -291,14 +310,14 @@ function AthleteDetail({ clientId, athlete: a, readiness, testDate, assignments,
               )}
             </div>
             <div className="mx-auto max-w-2xl">
-              <ProgressChart data={histData} unit="kg" height={160} />
+              <ProgressChart data={histData} unit={metric === "kg" ? "kg" : "t"} height={160} />
             </div>
             <p className="mt-3 text-center text-[11px] text-muted-2">{metric === "kg" ? "Carico = peso massimo sollevato per seduta · 1RM stimato con formula di Epley." : "Volume = serie × ripetizioni × carico (tonnellaggio per seduta)."}</p>
           </div>
         </Panel>
       )}
 
-      {picker && <AssignPicker athlete={a} exercises={exercises} templates={templates} onClose={() => setPicker(false)} onPick={(t) => { setPicker(false); setTgt(t); }} />}
+      {picker && <AssignPicker athlete={a} exercises={allExercises} templates={allTemplates} onClose={() => setPicker(false)} onPick={(t) => { setPicker(false); setTgt(t); }} />}
       {tgt && <AssignModal clientId={clientId} athletes={[a]} target={tgt} lockedAthleteIds={[a.id]} onClose={() => setTgt(null)} />}
       {workout && <WorkoutView assignment={workout} athleteName={`${a.firstName} ${a.lastName}`} onClose={() => setWorkout(null)} onComplete={() => { onUpdate(workout.id, { status: "completato" }); setWorkout(null); }} />}
     </div>

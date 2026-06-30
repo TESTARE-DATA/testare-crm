@@ -34,6 +34,7 @@ export default async function RdPage({ params }: { params: Promise<{ clientId: s
       </div>
 
       <DataIntelligence
+        clientId={clientId}
         clientName={client.name}
         metrics={METRICS}
         matrix={matrix}

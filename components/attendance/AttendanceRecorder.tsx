@@ -40,7 +40,11 @@ export function AttendanceRecorder({ clientId, session, athletes, seedAttendance
 
   const stored = byId(session.id)?.entries ?? {};
   const [entries, setEntries] = useState<Record<string, { status: string; minutes?: number }>>(() => ({ ...medical, ...stored }));
-  const setStatus = (id: string, status: string) => setEntries((e) => ({ ...e, [id]: { ...e[id], status } }));
+  const setStatus = (id: string, status: string) => setEntries((e) => (
+    // "non entrato" non ha minuti: azzerali, altrimenti un valore stale gonfia i
+    // minuti "giocati" della partita (totMin e le statistiche del registro).
+    { ...e, [id]: status === "non entrato" ? { status } : { ...e[id], status } }
+  ));
   const setMin = (id: string, minutes: number) => setEntries((e) => ({ ...e, [id]: { status: e[id]?.status ?? "subentrato", minutes } }));
   const defStatus = opts?.[0]?.v ?? "presente";
   // "Tutti presente" rispetta gli indisponibili (restano al default medico).

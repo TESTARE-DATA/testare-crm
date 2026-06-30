@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import type { Athlete, CalendarEvent, MedicalRecord, SessionType, WorkAssignment } from "@/lib/types";
+import type { Athlete, CalendarEvent, MedicalClosure, MedicalRecord, SessionType, WorkAssignment } from "@/lib/types";
 import { buildSessions } from "@/lib/attendance";
 import { SESSION_META } from "@/lib/sessions";
 import { sectionHref } from "@/lib/nav";
 import { useLocalCollection } from "@/lib/store";
+import { useDbCollection } from "@/lib/useDbCollection";
+import { effectivePhase, type MedicalPhaseOverride } from "@/lib/medical-flow";
 import { Icon } from "@/components/Icon";
 import { Panel } from "@/components/ui";
 
@@ -36,16 +38,24 @@ export function AthleteAgenda({
   athletes,
   seedEvents,
   seedMedical,
+  initialMedical,
+  initialClosures,
+  initialPhase,
 }: {
   clientId: string;
   athleteId: string;
   athletes: Athlete[];
   seedEvents: CalendarEvent[];
   seedMedical: MedicalRecord[];
+  initialMedical?: MedicalRecord[];
+  initialClosures?: MedicalClosure[];
+  initialPhase?: MedicalPhaseOverride[];
 }) {
   const { items: localEvents } = useLocalCollection<CalendarEvent>(`events:${clientId}`);
   const { items: assignments } = useLocalCollection<WorkAssignment>(`assignments:${clientId}`);
-  const { items: localMedical } = useLocalCollection<MedicalRecord>(`medical:${clientId}`);
+  const { items: localMedical } = useDbCollection<MedicalRecord>(`medical:${clientId}`, initialMedical);
+  const { items: closures } = useDbCollection<MedicalClosure>(`medical-closed:${clientId}`, initialClosures);
+  const { items: phaseOv } = useDbCollection<MedicalPhaseOverride>(`medical-phase:${clientId}`, initialPhase);
 
   const items = useMemo(() => {
     const horizon = isoPlus(REF_TODAY, HORIZON_DAYS);
@@ -57,9 +67,13 @@ export function AthleteAgenda({
       title: s.title, objective: s.objective, location: s.location, load: s.estLoad,
     }));
 
-    // Rientri clinici previsti (episodi attivi dell'atleta).
+    // Rientri clinici previsti (episodi attivi dell'atleta): fase effettiva dal
+    // Diario e casi chiusi esclusi, coerentemente con l'Area Medica.
+    const closedIds = new Set(closures.map((c) => c.id));
     for (const m of [...seedMedical, ...localMedical]) {
-      if (m.athleteId !== athleteId || m.phase === "conclusa" || !m.expectedReturn) continue;
+      if (m.athleteId !== athleteId || !m.expectedReturn) continue;
+      const phase = closedIds.has(m.id) ? "conclusa" : effectivePhase(m, phaseOv);
+      if (phase === "conclusa") continue;
       if (m.expectedReturn < REF_TODAY || m.expectedReturn > horizon) continue;
       list.push({ id: `ret-${m.id}`, date: m.expectedReturn, sessionType: "medico", kind: "rientro", title: `Rientro previsto · ${m.injury}`, location: "Area medica" });
     }
@@ -73,7 +87,7 @@ export function AthleteAgenda({
       byDay.get(it.date)!.push(it);
     }
     return [...byDay.entries()].map(([date, its]) => ({ date, items: its }));
-  }, [athletes, seedEvents, localEvents, assignments, seedMedical, localMedical, athleteId]);
+  }, [athletes, seedEvents, localEvents, assignments, seedMedical, localMedical, closures, phaseOv, athleteId]);
 
   const totalSessions = items.reduce((s, d) => s + d.items.filter((i) => i.kind === "seduta").length, 0);
 

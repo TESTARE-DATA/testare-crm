@@ -127,7 +127,15 @@ export interface RegistroStats {
 
 const recordedOf = (rec?: AttendanceRec) => rec && Object.keys(rec.entries).length > 0;
 
-export function computeStats(sessions: SessionEntry[], attendance: AttendanceRec[], athletes: Athlete[]): RegistroStats {
+export function computeStats(
+  sessions: SessionEntry[],
+  attendance: AttendanceRec[],
+  athletes: Athlete[],
+  // Metadati degli obiettivi PERSONALIZZATI (creati in Programmazione): fallback
+  // quando l'obiettivo non è tra quelli preimpostati, così conserva acronimo,
+  // colore e macro-area invece di finire in "Altro"/grigio.
+  customMeta?: Map<string, { acr: string; color: string; group: string }>,
+): RegistroStats {
   const att = new Map(attendance.map((r) => [r.id, r]));
   const training = sessions.filter((s) => s.sessionType !== "riposo");
 
@@ -135,7 +143,7 @@ export function computeStats(sessions: SessionEntry[], attendance: AttendanceRec
   const objMap = new Map<string, ObjectiveCount>();
   for (const s of training) {
     if (!s.objective) continue;
-    const m = objectiveMeta(s.objective);
+    const m = objectiveMeta(s.objective) ?? customMeta?.get(s.objective);
     const key = s.objective;
     const cur = objMap.get(key) ?? { label: s.objective, acr: m?.acr ?? "—", group: m?.group ?? "Altro", color: m?.color ?? "#64748b", count: 0, done: 0 };
     cur.count += 1;

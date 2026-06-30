@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { Athlete, CalendarEvent, InjurySeverity, MedicalRecord } from "@/lib/types";
+import type { Athlete, CalendarEvent, InjurySeverity, MedicalClosure, MedicalRecord } from "@/lib/types";
 import { sectionHref } from "@/lib/nav";
 import { useLocalCollection } from "@/lib/store";
+import { useDbCollection } from "@/lib/useDbCollection";
+import { effectivePhase, type MedicalPhaseOverride } from "@/lib/medical-flow";
 import { Icon } from "@/components/Icon";
 import { Modal, ModalHeader } from "@/components/Modal";
 import { Panel } from "@/components/ui";
@@ -37,8 +39,9 @@ const fmt = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("it-IT", {
 
 /**
  * Cartella clinica dell'atleta: storico infortuni "di sempre" con referto
- * apribile in un clic. Collegata all'Area Medica (stessa sorgente: seed +
- * record creati in localStorage `medical:<clientId>`).
+ * apribile in un clic. Collegata all'Area Medica: stessa sorgente DB dei record
+ * (`medical:<clientId>`), inclusi gli avanzamenti di fase (`medical-phase`) e le
+ * chiusure (`medical-closed`) decise nel Diario riabilitativo.
  */
 export function ClinicalRecord({
   clientId,
@@ -46,22 +49,40 @@ export function ClinicalRecord({
   athlete,
   seedMedical,
   seedEvents,
+  initialMedical,
+  initialClosures,
+  initialPhase,
 }: {
   clientId: string;
   clientName: string;
   athlete: Athlete;
   seedMedical: MedicalRecord[];
   seedEvents: CalendarEvent[];
+  initialMedical?: MedicalRecord[];
+  initialClosures?: MedicalClosure[];
+  initialPhase?: MedicalPhaseOverride[];
 }) {
-  const { items: local } = useLocalCollection<MedicalRecord>(`medical:${clientId}`);
+  const { items: local } = useDbCollection<MedicalRecord>(`medical:${clientId}`, initialMedical);
+  const { items: closures } = useDbCollection<MedicalClosure>(`medical-closed:${clientId}`, initialClosures);
+  const { items: phaseOv } = useDbCollection<MedicalPhaseOverride>(`medical-phase:${clientId}`, initialPhase);
   const { items: localEvents } = useLocalCollection<CalendarEvent>(`events:${clientId}`);
   const [referto, setReferto] = useState<MedicalRecord | null>(null);
 
   const records = useMemo(() => {
-    const all = [...seedMedical, ...local].filter((m) => m.athleteId === athlete.id);
+    const closureMap = new Map(closures.map((c) => [c.id, c]));
+    // Applica la fase EFFETTIVA (override dal Diario) e marca come conclusi i casi
+    // chiusi, così la cartella riflette lo stato reale gestito in Area Medica.
+    const all = [...seedMedical, ...local]
+      .filter((m) => m.athleteId === athlete.id)
+      .map((m) => {
+        const cl = closureMap.get(m.id);
+        if (cl || m.phase === "conclusa") return { ...m, phase: "conclusa" as const, returnedAt: m.returnedAt ?? cl?.closedAt };
+        const phase = effectivePhase(m, phaseOv);
+        return phase === m.phase ? m : { ...m, phase };
+      });
     const rank = (m: MedicalRecord) => (m.phase === "conclusa" ? 1 : 0);
     return all.sort((a, b) => rank(a) - rank(b) || b.date.localeCompare(a.date));
-  }, [seedMedical, local, athlete.id]);
+  }, [seedMedical, local, closures, phaseOv, athlete.id]);
 
   // Frequenza settimanale di allenamenti/partite ricavata dal CALENDARIO.
   const freq = useMemo(() => {

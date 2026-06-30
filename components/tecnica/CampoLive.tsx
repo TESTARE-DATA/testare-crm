@@ -186,7 +186,10 @@ export function CampoLive({ clientId, editId }: { clientId: string; editId?: str
 
   const effA = teamCount(cfg.playersA, cfg.formationA);
   const effB = teamCount(cfg.playersB, cfg.formationB);
-  const totalPlayers = effA + effB + cfg.jollyCount + (cfg.goalkeepers ? 2 : 0);
+  // I portieri contano solo se davvero disegnati (vedi buildEntities): con "sponde"
+  // o "nessuna" porta non compaiono, quindi non vanno conteggiati né nella densità.
+  const hasGk = cfg.goalkeepers && cfg.goalType !== "nessuna" && cfg.goalType !== "sponde";
+  const totalPlayers = effA + effB + cfg.jollyCount + (hasGk ? 2 : 0);
   const density = useMemo(() => Math.round((cfg.length * cfg.width) / Math.max(1, totalPlayers)), [cfg.length, cfg.width, totalPlayers]);
   const workRest = useMemo(() => {
     const work = cfg.durationMin * 60 / Math.max(1, cfg.series * cfg.reps);

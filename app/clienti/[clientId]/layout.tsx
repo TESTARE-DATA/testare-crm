@@ -1,10 +1,12 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
+import { getAthletes, getMedical } from "@/lib/data";
 import { TESTARE } from "@/lib/brand";
 import { BrandScope } from "@/components/BrandScope";
 import { BrandVars } from "@/components/BrandVars";
 import { Icon } from "@/components/Icon";
+import { TopBarActions } from "@/components/TopBarActions";
 
 export default async function ClientLayout({
   children,
@@ -46,8 +48,7 @@ export default async function ClientLayout({
             </div>
           </div>
           <div className="flex items-center gap-2 text-muted">
-            <button className="rounded-lg p-2 transition-colors hover:bg-background" aria-label="Cerca"><Icon name="search" size={18} /></button>
-            <button className="rounded-lg p-2 transition-colors hover:bg-background" aria-label="Notifiche"><Icon name="bell" size={18} /></button>
+            <TopBarActions clientId={clientId} athletes={getAthletes(clientId)} medical={getMedical(clientId)} />
             <a
               href={TESTARE.website}
               target="_blank"

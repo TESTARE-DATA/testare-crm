@@ -55,12 +55,12 @@ export function AssignButton({ clientId, athletes, target, variant = "ghost", de
 type Pres = { sets: string; reps: string; kg: string; rest: string; note: string };
 const defPres = (): Pres => ({ sets: "3", reps: "10", kg: "", rest: "120", note: "" });
 
-export function AssignModal({ clientId, athletes, target, options, onClose, lockedAthleteIds, defaultDate }: { clientId: string; athletes: Athlete[]; target?: AssignTarget; options?: AssignOptions; onClose: () => void; lockedAthleteIds?: string[]; defaultDate?: string }) {
+export function AssignModal({ clientId, athletes, target, options, onClose, lockedAthleteIds, defaultDate, defaultSessionType }: { clientId: string; athletes: Athlete[]; target?: AssignTarget; options?: AssignOptions; onClose: () => void; lockedAthleteIds?: string[]; defaultDate?: string; defaultSessionType?: SessionType }) {
   const { add } = useLocalCollection<WorkAssignment>(`assignments:${clientId}`);
   const locked = !!lockedAthleteIds;
   const [sel, setSel] = useState<string[]>(lockedAthleteIds ?? []);
   const [date, setDate] = useState(defaultDate ?? "2026-06-19");
-  const [sessionType, setSessionType] = useState<SessionType>(defaultSession(target));
+  const [sessionType, setSessionType] = useState<SessionType>(defaultSessionType ?? defaultSession(target));
   const [objective, setObjective] = useState("");
   const [note, setNote] = useState("");
   const [done, setDone] = useState(false);

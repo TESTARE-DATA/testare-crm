@@ -59,5 +59,12 @@ export function useLocalCollection<T extends { id: string }>(key: string) {
 }
 
 export function newId(prefix: string) {
-  return `${prefix}-${Math.abs(Date.now() % 1e9).toString(36)}-${Math.floor(performance.now() % 1000)}`;
+  // Entropia reale: chiamate multiple nello STESSO tick (es. più esercizi creati
+  // insieme nel builder) devono restare uniche, altrimenti l'upsert per id le
+  // sovrascrive a vicenda (onConflict "coll,id") con perdita silenziosa di dati.
+  const rand =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}-${rand}`;
 }

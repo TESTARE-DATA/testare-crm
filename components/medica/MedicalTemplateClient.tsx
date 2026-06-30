@@ -14,9 +14,13 @@ const PHASE_COLOR: Record<string, string> = { acuta: "#dc2626", subacuta: "#ea58
 
 export function MedicalTemplateClient({ clientId, seedTemplates, items, seedCount }: { clientId: string; seedTemplates: RehabTemplate[]; items: RehabItem[]; seedCount: number }) {
   const { items: local, add, remove } = useDbCollection<RehabTemplate>(`medical-templates:${clientId}`);
+  // Includi i RehabItem creati in "Esercizi & trattamenti" (DB): così sono
+  // selezionabili nei protocolli e i loro id si risolvono a nome/durata.
+  const { items: userItems } = useDbCollection<RehabItem>(`medical-items:${clientId}`);
+  const allItems = useMemo(() => [...items, ...userItems], [items, userItems]);
   const [open, setOpen] = useState(false);
   const localIds = new Set(local.map((t) => t.id));
-  const itemMap = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  const itemMap = useMemo(() => new Map(allItems.map((i) => [i.id, i])), [allItems]);
 
   const all = useMemo(() => [...seedTemplates, ...local], [seedTemplates, local]);
 
@@ -89,7 +93,7 @@ export function MedicalTemplateClient({ clientId, seedTemplates, items, seedCoun
         })}
       </div>
 
-      {open && <AddTemplateModal clientId={clientId} items={items} onClose={() => setOpen(false)} onAdd={add} />}
+      {open && <AddTemplateModal clientId={clientId} items={allItems} onClose={() => setOpen(false)} onAdd={add} />}
     </div>
   );
 }

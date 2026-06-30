@@ -74,12 +74,16 @@ export function DailyView({ clientId, area, athletes, records }: {
     return ROLES.filter((r) => present.has(r));
   }, [records, date, athById]);
 
-  // Media di squadra (giornata, reparto selezionato) per ogni metrica → baseline gruppo.
+  // Media di SQUADRA (intera giornata, indipendente dal filtro reparto): è il
+  // riferimento etichettato "Squadra" nella scheda seduta e nei flag "vs squadra",
+  // quindi non deve restringersi al reparto selezionato (altrimenti l'etichetta
+  // direbbe "squadra" mostrando in realtà la media del reparto).
   const teamMeanByKey = useMemo(() => {
+    const allDay = records.filter((g) => g.date === date);
     const out: Record<string, number> = {};
-    for (const m of cfg.metrics) out[m.key] = mean(dayRows.map((r) => m.get(r.g)));
+    for (const m of cfg.metrics) out[m.key] = mean(allDay.map((g) => m.get(g)));
     return out;
-  }, [dayRows, cfg.metrics]);
+  }, [records, date, cfg.metrics]);
 
   const sorted = useMemo(() => {
     const rows = [...dayRows];

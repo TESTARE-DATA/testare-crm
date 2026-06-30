@@ -109,9 +109,16 @@ export function buildMatrix(clientId: string): AthletePoint[] {
   const medical = getMedical(clientId);
 
   return athletes
-    .map((a) => ({ a, recs: gps.filter((g) => g.athleteId === a.id).sort((m, n) => m.date.localeCompare(n.date)) }))
-    .filter(({ recs }) => recs.length > 0)
-    .map(({ a, recs }) => {
+    .map((a) => ({
+      a,
+      recs: gps.filter((g) => g.athleteId === a.id).sort((m, n) => m.date.localeCompare(n.date)),
+      med: medical.find((m) => m.athleteId === a.id && m.phase !== "conclusa"),
+    }))
+    // Includi anche gli atleti con episodio medico aperto ma senza GPS (gli
+    // "infortunato" non generano dati GPS): altrimenti il report infortuni R&D
+    // perderebbe proprio i casi più gravi. Le metriche di carico restano a 0.
+    .filter(({ recs, med }) => recs.length > 0 || med)
+    .map(({ a, recs, med }) => {
       const loads = recs.map((g) => g.sRPE);
       const loadAvg = mean(loads);
       const loadTot = loads.reduce((s, x) => s + x, 0);
@@ -120,7 +127,6 @@ export function buildMatrix(clientId: string): AthletePoint[] {
       // Picco di carico: z-score dell'ultima seduta rispetto alla media personale.
       const lastLoad = loads[loads.length - 1] ?? loadAvg;
       const loadSpike = dailySd > 0 ? (lastLoad - loadAvg) / dailySd : 0;
-      const med = medical.find((m) => m.athleteId === a.id && m.phase !== "conclusa");
 
       const v: Record<string, number> = {
         loadAvg: Math.round(loadAvg),
@@ -139,7 +145,9 @@ export function buildMatrix(clientId: string): AthletePoint[] {
         forza: a.profile.forza,
         potenza: a.profile.potenza,
         reattivita: a.profile.reattivita,
-        asymmetry: Math.max(0, 100 - a.profile.simmetria),
+        // Asimmetria inter-arto (LSI%): stessa mappatura del test CMJ (lib/data.ts).
+        // simmetria è un PERCENTILE 0-100, non una % di differenza tra arti.
+        asymmetry: round1(Math.max(0, 100 - a.profile.simmetria) / 5),
         age: ageOf(a.birthDate),
         bodyFat: a.bodyFatPct,
         weight: a.weightKg,

@@ -57,7 +57,7 @@ export default async function CampionatoPage({ params }: { params: Promise<{ cli
                 <p className="px-4 py-6 text-sm text-muted">Nessuna partita in programma.</p>
               ) : (
                 <ul className="divide-y divide-border">
-                  {data.scheduled.map((m) => <MatchItem key={m.id} m={m} teamId={data.teamId} upcoming />)}
+                  {data.scheduled.map((m) => <MatchItem key={m.id} m={m} upcoming />)}
                 </ul>
               )}
             </Panel>
@@ -66,7 +66,7 @@ export default async function CampionatoPage({ params }: { params: Promise<{ cli
                 <p className="px-4 py-6 text-sm text-muted">Nessun risultato disponibile.</p>
               ) : (
                 <ul className="divide-y divide-border">
-                  {data.finished.map((m) => <MatchItem key={m.id} m={m} teamId={data.teamId} />)}
+                  {data.finished.map((m) => <MatchItem key={m.id} m={m} />)}
                 </ul>
               )}
             </Panel>
@@ -154,7 +154,7 @@ function Form({ form }: { form: string | null }) {
 }
 
 // ---- Partite ----------------------------------------------------------------
-function MatchItem({ m, teamId, upcoming }: { m: MatchRow; teamId: number | null; upcoming?: boolean }) {
+function MatchItem({ m, upcoming }: { m: MatchRow; upcoming?: boolean }) {
   const d = new Date(m.utcDate);
   const date = d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
   const time = d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });

@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { Badge, PageHeader } from "@/components/ui";
 import { AssignButton } from "@/components/programmazione/AssignButton";
 import { CustomTemplates } from "@/components/tecnica/CustomTemplates";
+import { NewTemplateButton } from "@/components/tecnica/NewTemplateButton";
 
 /** Lista template filtrata per dominio (campo = Area Tecnica · palestra = Prep. Atletica). */
 export function TemplateSection({ clientId, domain, defaultDate }: { clientId: string; domain: TemplateDomain; defaultDate?: string }) {
@@ -15,13 +16,18 @@ export function TemplateSection({ clientId, domain, defaultDate }: { clientId: s
   const exName = (id: string) => exercises.find((e) => e.id === id)?.name ?? id;
   const isCampo = domain === "campo";
 
+  // Libreria per il costruttore aperto da "+ Template" (gli esercizi vengono poi
+  // filtrati per dominio dentro il modal in base al tipo di seduta scelto).
+  const exOpts = exercises.map((e) => ({ id: e.id, name: e.name, domain: e.domain, durationMin: e.durationMin, category: String(e.category) }));
+  const tplOpts = templates.map((t) => ({ id: t.id, name: t.name, domain: t.domain, durationMin: t.estimated.durationMin, rpe: t.estimated.internalRpe, items: t.exerciseIds.map((id) => ({ exerciseId: id, name: exName(id), durationMin: exercises.find((e) => e.id === id)?.durationMin })) }));
+
   return (
     <div className="mx-auto max-w-7xl fade-up">
       <PageHeader
         title="Template"
         subtitle={isCampo ? "Sedute di campo con carico interno (RPE) ed esterno (km, sprint) — stimato vs effettivo" : "Sedute di palestra per gruppi muscolari — carico interno stimato vs effettivo"}
         icon="layers"
-        actions={<button className="brand-bg brand-on rounded-xl px-4 py-2 text-sm font-semibold shadow-sm">+ Template</button>}
+        actions={<NewTemplateButton clientId={clientId} athletes={athletes} options={{ exercises: exOpts, templates: tplOpts }} defaultSessionType={isCampo ? "campo" : "palestra"} defaultDate={defaultDate} />}
       />
 
       {templates.length === 0 ? (

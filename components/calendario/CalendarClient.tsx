@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Athlete, CalendarEvent, DaySlot, PhysioDiaryEntry, SessionType, TemplateDomain, ExerciseDomain, WorkAssignment } from "@/lib/types";
 import { SESSION_META, SESSION_TYPES } from "@/lib/sessions";
 import { TYPE_LOAD, dayLoad, mdCode, mdColor } from "@/lib/microcycle";
-import { objectiveMeta } from "@/lib/objectives";
+import { SESSION_OBJECTIVES } from "@/lib/objectives";
 import { type AttendanceRec, type SessionEntry, assignmentToSession, eventToSession } from "@/lib/attendance";
 import { useLocalCollection, newId } from "@/lib/store";
 import { useDbCollection } from "@/lib/useDbCollection";
@@ -36,10 +36,14 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Aritmetica in UTC: `toISO` usa toISOString() (UTC), quindi anche il calcolo del
+// lunedì DEVE essere in UTC, altrimenti in fuso UTC+ (Italia) la griglia slitta di
+// un giorno e gli eventi seed (ancorati a UTC in lib/data.ts) finiscono nella cella
+// con etichetta sbagliata.
 function mondayOf(iso: string, weekOffset = 0) {
-  const d = new Date(iso + "T00:00:00");
-  const dow = (d.getDay() + 6) % 7;
-  d.setDate(d.getDate() - dow + weekOffset * 7);
+  const d = new Date(iso + "T00:00:00Z");
+  const dow = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - dow + weekOffset * 7);
   return d;
 }
 
@@ -377,9 +381,10 @@ function EventModal({
   dayEvents: CalendarEvent[]; localIds: Set<string>; onClose: () => void; onAdd: (e: CalendarEvent) => void; onRemove: (id: string) => void; onOpenEvent: (e: CalendarEvent) => void;
   onAssignPick: (date: string) => void;
 }) {
-  const [form, setForm] = useState({ title: "", slot: "mattina" as DaySlot, time: "", sessionType: "campo" as SessionType, location: "", assignment: "squadra" as "squadra" | "gruppo", templateId: "" });
+  const [form, setForm] = useState({ title: "", slot: "mattina" as DaySlot, time: "", sessionType: "campo" as SessionType, location: "", assignment: "squadra" as "squadra" | "gruppo", templateId: "", objective: "" });
   const [group, setGroup] = useState<string[]>([]);
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const objCfg = SESSION_OBJECTIVES[form.sessionType];
 
   const submit = () => {
     if (!form.title.trim()) return;
@@ -388,6 +393,7 @@ function EventModal({
       time: form.time || undefined, sessionType: form.sessionType, location: form.location || undefined,
       assignment: form.assignment, groupAthleteIds: form.assignment === "gruppo" ? group : undefined,
       templateId: form.templateId || undefined,
+      objective: form.objective || undefined,
     });
     onClose();
   };
@@ -438,9 +444,19 @@ function EventModal({
                 <select className="inp" value={form.slot} onChange={(e) => set("slot", e.target.value)}><option value="mattina">Mattina</option><option value="pomeriggio">Pomeriggio</option></select>
                 <input type="time" className="inp" value={form.time} onChange={(e) => set("time", e.target.value)} />
               </div>
-              <select className="inp" value={form.sessionType} onChange={(e) => set("sessionType", e.target.value)}>
+              <select className="inp" value={form.sessionType} onChange={(e) => setForm((f) => ({ ...f, sessionType: e.target.value as SessionType, objective: "" }))}>
                 {SESSION_TYPES.map((t) => <option key={t} value={t}>{SESSION_META[t].label}</option>)}
               </select>
+              {objCfg && (
+                <select className="inp" value={form.objective} onChange={(e) => set("objective", e.target.value)} aria-label={objCfg.fieldLabel}>
+                  <option value="">{objCfg.placeholder}</option>
+                  {objCfg.groups.map((g) => (
+                    <optgroup key={g.group} label={g.group}>
+                      {g.items.map((it) => <option key={it.label} value={it.label}>{it.label}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              )}
               <input className="inp" placeholder="Luogo (opzionale)" value={form.location} onChange={(e) => set("location", e.target.value)} />
               {templates.length > 0 && (
                 <select className="inp" value={form.templateId} onChange={(e) => set("templateId", e.target.value)}>

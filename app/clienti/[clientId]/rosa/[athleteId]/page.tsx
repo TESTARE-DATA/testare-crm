@@ -3,13 +3,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
 import { getAthlete, getAthletes, getAthleteTests, getEvents, getGps, getMedical, getSeedAttendance, getTeamAverageKpi } from "@/lib/data";
+import { getAthleteMeasurements } from "@/lib/measurements";
 import { getAthleteReadiness, WELLNESS, SCALE_MAX } from "@/lib/readiness";
 import { sectionHref } from "@/lib/nav";
 import { KPI_LABEL, delta, flagsOf, tierOf, TIER_META, clusterOf } from "@/lib/perf";
-import type { PhysicalKpi } from "@/lib/types";
+import { readCollection } from "@/lib/db/collections";
+import type { MedicalClosure, MedicalRecord, PhysicalKpi } from "@/lib/types";
+import type { MedicalPhaseOverride } from "@/lib/medical-flow";
 import { AthleteHeader } from "@/components/rosa/AthleteHeader";
 import { AthleteAnthropometrics } from "@/components/rosa/AthleteAnthropometrics";
 import { ClinicalRecord } from "@/components/rosa/ClinicalRecord";
+import { AthleteMeasurements } from "@/components/rosa/AthleteMeasurements";
 import { AthleteAttendance } from "@/components/rosa/AthleteAttendance";
 import { AthleteAgenda } from "@/components/rosa/AthleteAgenda";
 import { AthleteReport } from "@/components/rosa/AthleteReport";
@@ -40,6 +44,13 @@ export default async function AthletePage({ params }: { params: Promise<{ client
 
   const tests = getAthleteTests(athleteId);
   const medical = getMedical(clientId);
+  // Record clinici reali (creati/aggiornati dall'Area Medica) letti dal DB lato
+  // server, così la cartella e l'agenda dell'atleta partono già allineate.
+  const [dbMedical, dbClosures, dbPhase] = await Promise.all([
+    readCollection<MedicalRecord>(`medical:${clientId}`).catch(() => [] as MedicalRecord[]),
+    readCollection<MedicalClosure>(`medical-closed:${clientId}`).catch(() => [] as MedicalClosure[]),
+    readCollection<MedicalPhaseOverride>(`medical-phase:${clientId}`).catch(() => [] as MedicalPhaseOverride[]),
+  ]);
   const gps = getGps(clientId).filter((g) => g.athleteId === athleteId).sort((x, y) => y.date.localeCompare(x.date))[0];
 
   return (
@@ -58,7 +69,7 @@ export default async function AthletePage({ params }: { params: Promise<{ client
 
       {/* 2 · Cartella clinica (collegata all'Area Medica) */}
       <div className="mb-6">
-        <ClinicalRecord clientId={clientId} clientName={client.name} athlete={a} seedMedical={medical} seedEvents={getEvents(clientId)} />
+        <ClinicalRecord clientId={clientId} clientName={client.name} athlete={a} seedMedical={medical} seedEvents={getEvents(clientId)} initialMedical={dbMedical} initialClosures={dbClosures} initialPhase={dbPhase} />
       </div>
 
       {/* 3 · Profilo atletico TESTÀRE */}
@@ -154,6 +165,11 @@ export default async function AthletePage({ params }: { params: Promise<{ client
         )}
       </Panel>
 
+      {/* 3c · Misurazioni interne (collegate a Test → Misurazioni) */}
+      <div className="mb-6">
+        <AthleteMeasurements clientId={clientId} athleteId={athleteId} seed={getAthleteMeasurements(clientId, athleteId)} />
+      </div>
+
       {/* 4 · Readiness del singolo atleta */}
       {rdLatest && (
         <Panel
@@ -196,7 +212,7 @@ export default async function AthletePage({ params }: { params: Promise<{ client
       </div>
 
       {/* 6 · Agenda dell'atleta */}
-      <AthleteAgenda clientId={clientId} athleteId={athleteId} athletes={getAthletes(clientId)} seedEvents={getEvents(clientId)} seedMedical={medical} />
+      <AthleteAgenda clientId={clientId} athleteId={athleteId} athletes={getAthletes(clientId)} seedEvents={getEvents(clientId)} seedMedical={medical} initialMedical={dbMedical} initialClosures={dbClosures} initialPhase={dbPhase} />
     </div>
   );
 }
