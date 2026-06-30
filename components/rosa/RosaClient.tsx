@@ -139,11 +139,9 @@ export function RosaClient({ clientId, seed, readiness }: { clientId: string; se
                 );
                 return (
                   <div key={a.id} className="group relative">
-                    {isLocal ? (
-                      <div title="Salvato localmente — la scheda completa sarà disponibile con il database">{card}</div>
-                    ) : (
-                      <Link href={`${sectionHref(clientId, "rosa")}/${a.id}`}>{card}</Link>
-                    )}
+                    {/* Sia gli atleti seed sia quelli aggiunti dall'utente aprono la
+                        scheda completa: la pagina di dettaglio risolve dal DB. */}
+                    <Link href={`${sectionHref(clientId, "rosa")}/${a.id}`}>{card}</Link>
                     {/* Azioni: invia in area medica / modifica / rimuovi */}
                     <div className="absolute right-2.5 top-2.5 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                       <button onClick={() => setMedicalFor(a)} title="Invia in area medica" className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-surface text-muted shadow-sm transition-colors hover:border-red-300 hover:text-bad">
