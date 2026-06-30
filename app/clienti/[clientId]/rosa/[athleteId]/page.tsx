@@ -8,11 +8,12 @@ import { getAthleteReadiness, WELLNESS, SCALE_MAX } from "@/lib/readiness";
 import { sectionHref } from "@/lib/nav";
 import { KPI_LABEL, delta, flagsOf, tierOf, TIER_META, clusterOf } from "@/lib/perf";
 import { readCollection } from "@/lib/db/collections";
-import type { MedicalClosure, MedicalRecord, PhysicalKpi } from "@/lib/types";
+import type { AthleteTestSession, MedicalClosure, MedicalRecord, PhysicalKpi } from "@/lib/types";
 import type { MedicalPhaseOverride } from "@/lib/medical-flow";
 import { AthleteHeader } from "@/components/rosa/AthleteHeader";
 import { AthleteAnthropometrics } from "@/components/rosa/AthleteAnthropometrics";
 import { ClinicalRecord } from "@/components/rosa/ClinicalRecord";
+import { AthleteTestHistory } from "@/components/rosa/AthleteTestHistory";
 import { AthleteMeasurements } from "@/components/rosa/AthleteMeasurements";
 import { AthleteAttendance } from "@/components/rosa/AthleteAttendance";
 import { AthleteAgenda } from "@/components/rosa/AthleteAgenda";
@@ -46,11 +47,13 @@ export default async function AthletePage({ params }: { params: Promise<{ client
   const medical = getMedical(clientId);
   // Record clinici reali (creati/aggiornati dall'Area Medica) letti dal DB lato
   // server, così la cartella e l'agenda dell'atleta partono già allineate.
-  const [dbMedical, dbClosures, dbPhase] = await Promise.all([
+  const [dbMedical, dbClosures, dbPhase, dbTests] = await Promise.all([
     readCollection<MedicalRecord>(`medical:${clientId}`).catch(() => [] as MedicalRecord[]),
     readCollection<MedicalClosure>(`medical-closed:${clientId}`).catch(() => [] as MedicalClosure[]),
     readCollection<MedicalPhaseOverride>(`medical-phase:${clientId}`).catch(() => [] as MedicalPhaseOverride[]),
+    readCollection<AthleteTestSession>(`athlete-tests:${clientId}`).catch(() => [] as AthleteTestSession[]),
   ]);
+  const athleteTests = dbTests.filter((t) => t.athleteId === athleteId);
   const gps = getGps(clientId).filter((g) => g.athleteId === athleteId).sort((x, y) => y.date.localeCompare(x.date))[0];
 
   return (
@@ -148,6 +151,11 @@ export default async function AthletePage({ params }: { params: Promise<{ client
           </div>
         </div>
       </Panel>
+
+      {/* 3a · Storico valutazioni neuromuscolari (report TESTÀRE importati) */}
+      <div className="mb-6">
+        <AthleteTestHistory clientId={clientId} athleteId={athleteId} initial={athleteTests} />
+      </div>
 
       {/* 3b · Ultimo rilevamento GPS */}
       <Panel title="Ultimo rilevamento GPS" className="mb-6" action={<Link href={sectionHref(clientId, "carico")} className="brand-text inline-flex items-center gap-1 text-[13px] font-semibold hover:underline">Carico <Icon name="chevron" size={13} /></Link>}>

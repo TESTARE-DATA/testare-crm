@@ -492,6 +492,22 @@ export interface Measurement {
   notes?: string;
 }
 
+// ---- Valutazione neuromuscolare importata (report HTML TESTÀRE) -------------
+/** KPI 0–100 di una valutazione; un asse può mancare (test non eseguito → null). */
+export interface TestKpi { forza: number | null; potenza: number | null; reattivita: number | null; simmetria: number | null; pIndex: number | null }
+/** Una misura/test della batteria (valore testuale per supportare i bilaterali "147/131"). */
+export interface TestMeasure { name: string; value: string; unit: string; percentile: number | null }
+/** Una sessione di valutazione di un atleta, importata dal report e salvata nello storico. */
+export interface AthleteTestSession {
+  id: string; // `${clientId}-ts-${athleteId}-${date}` → upsert idempotente per (atleta, data)
+  clientId: string;
+  athleteId: string;
+  date: string; // ISO YYYY-MM-DD
+  source: string; // nome file del report
+  kpi: TestKpi | null; // presente per la sessione corrente (dalla tabella squadra)
+  measures: TestMeasure[];
+}
+
 // ---- Test -------------------------------------------------------------------
 export type TestType =
   | "Sprint 30m"

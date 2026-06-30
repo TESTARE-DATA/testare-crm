@@ -8,8 +8,10 @@ import { SWC, TIER_META, tierOf } from "@/lib/perf";
 import { BATTERY, BATTERY_DIM, DIM_META } from "@/lib/tests";
 import { useLocalCollection, newId } from "@/lib/store";
 import { extractDateFromDataUrl } from "@/lib/fileDate";
+import { parseTestReport, type ParsedReport } from "@/lib/testReport";
 import { Icon } from "@/components/Icon";
 import { PageHeader, TierBadge } from "@/components/ui";
+import { ImportReportModal } from "@/components/test/ImportReportModal";
 
 type Tab = "ranking" | "distribuzione" | "batteria" | "evoluzione" | "archivio";
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -47,7 +49,7 @@ export function TestClient({ clientId, athletes, clientLogo, clientName }: { cli
       {tab === "distribuzione" && <Distribuzione athletes={athletes} />}
       {tab === "batteria" && <Batteria />}
       {tab === "evoluzione" && <Evoluzione clientId={clientId} athletes={athletes} />}
-      {tab === "archivio" && <Archivio clientId={clientId} clientLogo={clientLogo} clientName={clientName} />}
+      {tab === "archivio" && <Archivio clientId={clientId} athletes={athletes} clientLogo={clientLogo} clientName={clientName} />}
     </div>
   );
 }
@@ -72,22 +74,49 @@ function cleanName(filename: string): string {
   return base.length >= 3 ? base : ANALYSIS_NAME;
 }
 
-function Archivio({ clientId, clientLogo, clientName }: { clientId: string; clientLogo: string; clientName: string }) {
+function Archivio({ clientId, athletes, clientLogo, clientName }: { clientId: string; athletes: Athlete[]; clientLogo: string; clientName: string }) {
   const { items, add, remove } = useLocalCollection<ReportFile>(`test-reports:${clientId}`);
   const all = [...items, ...SEED_REPORTS].sort((a, b) => b.date.localeCompare(a.date));
+  const [report, setReport] = useState<{ parsed: ParsedReport; fileName: string } | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  // Archivia il file così com'è (PDF, o HTML non riconosciuto come report TESTÀRE).
+  const archiveFile = (f: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result);
+      const date = extractDateFromDataUrl(url) ?? new Date().toISOString().slice(0, 10);
+      try { add({ id: newId("rep"), name: cleanName(f.name), date, kind: /\.pdf$/i.test(f.name) ? "pdf" : "html", url }); }
+      catch { add({ id: newId("rep"), name: cleanName(f.name), date, kind: /\.pdf$/i.test(f.name) ? "pdf" : "html" }); }
+    };
+    reader.readAsDataURL(f);
+  };
 
   const onFiles = (files: FileList | null) => {
     if (!files) return;
     Array.from(files).forEach((f) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const url = String(reader.result);
-        // estrai la data dal contenuto del file (decodifica il base64 del data-URL)
-        const date = extractDateFromDataUrl(url) ?? new Date().toISOString().slice(0, 10);
-        add({ id: newId("rep"), name: cleanName(f.name), date, kind: /\.pdf$/i.test(f.name) ? "pdf" : "html", url });
-      };
-      reader.readAsDataURL(f);
+      if (/\.html?$/i.test(f.name)) {
+        // HTML: prova a leggerlo come report di valutazione neuromuscolare → estrazione dati.
+        const reader = new FileReader();
+        reader.onload = () => {
+          const parsed = parseTestReport(String(reader.result));
+          if (parsed.ok && parsed.athletes.length) setReport({ parsed, fileName: f.name });
+          else archiveFile(f); // HTML non riconosciuto → archivia e basta
+        };
+        reader.readAsText(f);
+      } else {
+        archiveFile(f); // PDF: comportamento invariato
+      }
     });
+  };
+
+  // A conferma importazione: registra una voce nell'archivio (metadati; il file
+  // completo non entra in localStorage per dimensione) e mostra l'esito.
+  const onImported = (count: number) => {
+    if (report) add({ id: newId("rep"), name: ANALYSIS_NAME, date: report.parsed.reportDate ?? new Date().toISOString().slice(0, 10), kind: "html" });
+    setFlash(`Importati ${count} giocatori: valori salvati nello storico e nei radar.`);
+    setReport(null);
+    window.setTimeout(() => setFlash(null), 6000);
   };
 
   // raggruppa per (data + nome): un gruppo = una valutazione con i suoi formati
@@ -100,10 +129,19 @@ function Archivio({ clientId, clientLogo, clientName }: { clientId: string; clie
 
   return (
     <div>
-      <label className="mb-5 flex cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border py-6 text-sm font-medium text-muted transition-colors hover:border-[var(--brand-primary)] hover:text-foreground">
-        <Icon name="upload" size={18} /> Carica un report (HTML o PDF) — la data viene letta dal file
+      <label className="mb-3 flex cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border py-6 text-sm font-medium text-muted transition-colors hover:border-[var(--brand-primary)] hover:text-foreground">
+        <Icon name="upload" size={18} /> Carica un report (HTML o PDF) — dall&apos;HTML estraggo i dati di ogni giocatore
         <input type="file" accept=".html,.htm,application/pdf" multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
       </label>
+      <p className="mb-5 text-center text-[12px] text-muted-2">Carichi il report completo: i valori dei singoli atleti finiscono nello storico e nel radar di ciascuno, dopo la tua conferma.</p>
+
+      {flash && (
+        <div className="mb-5 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <Icon name="link" size={16} /> {flash}
+        </div>
+      )}
+
+      {report && <ImportReportModal clientId={clientId} seedAthletes={athletes} parsed={report.parsed} fileName={report.fileName} onClose={() => setReport(null)} onDone={onImported} />}
 
       <div className="space-y-3">
         {[...groups.entries()].map(([k, files]) => {
