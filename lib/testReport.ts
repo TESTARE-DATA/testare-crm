@@ -14,7 +14,7 @@
 // ============================================================================
 
 import { parse, type HTMLElement } from "node-html-parser";
-import type { TestKpi } from "./types";
+import type { FvPoint, FvProfile, TestKpi } from "./types";
 
 export interface ParsedTest {
   name: string;
@@ -27,6 +27,9 @@ export interface ParsedSession {
   label: string; // data originale com'era nel file (es. "13/05/26")
   active: boolean;
   tests: ParsedTest[];
+  fv?: FvProfile; // Profilo Carico-Velocità (se eseguito)
+  commento?: string; // Commento Tecnico
+  note?: string; // Note Preparatore
 }
 // Un valore può mancare nel report (cella vuota = test non eseguito): lo teniamo
 // null e lo segnaliamo come "n/d" nella verifica, senza scartare l'intero atleta.
@@ -61,6 +64,32 @@ function pureValue(el: HTMLElement): string {
   const direct = el.childNodes.filter((n) => n.nodeType === 3).map((n) => n.text).join("");
   return direct.replace(/[↑↓→\s]/g, "").trim();
 }
+/** Estrae il Profilo Carico-Velocità da un blocco: pendenza, interpretazione e
+ *  punti della curva (misurati, retta di regressione, 1RM) dal data-chart-config.
+ *  Restituisce undefined se la sessione non ha eseguito il test F-V. */
+function extractFv(block: HTMLElement): FvProfile | undefined {
+  const t = txt(block);
+  const slopeM = t.match(/Pendenza:\s*(-?[\d.]+)/i);
+  const profM = t.match(/Profilo:\s*(.+)$/i);
+  let measured: FvPoint[] = [], line: FvPoint[] = [], oneRm: FvPoint | null = null;
+  const chartEl = block.querySelector("[data-chart-config]");
+  if (chartEl) {
+    try {
+      const cfg = JSON.parse(chartEl.getAttribute("data-chart-config") || "");
+      for (const ds of cfg?.data?.datasets ?? []) {
+        const pts: FvPoint[] = (ds.data ?? []).filter((p: unknown): p is FvPoint => !!p && typeof (p as FvPoint).x === "number" && typeof (p as FvPoint).y === "number").map((p: FvPoint) => ({ x: p.x, y: p.y }));
+        const label = String(ds.label ?? "");
+        if (/misurat/i.test(label)) measured = pts;
+        else if (/^reg/i.test(label)) line = pts;
+        else if (/1\s*rm/i.test(label)) oneRm = pts[0] ?? null;
+      }
+    } catch { /* config non valida → niente curva */ }
+  }
+  const slope = slopeM ? Number(slopeM[1]) : null;
+  if (!measured.length && !line.length && slope == null) return undefined;
+  return { slope: slope != null && Number.isFinite(slope) ? slope : null, profile: profM ? profM[1].trim() : "", measured, line, oneRm };
+}
+
 function isHidden(el: HTMLElement, stop: HTMLElement): boolean {
   let n: HTMLElement | null = el;
   while (n && n !== stop) {
@@ -132,14 +161,15 @@ export function parseTestReport(html: string): ParsedReport {
     }
 
     // Raccogli le tabelle di dettaglio (con percentili) raggruppate per sessione.
+    type Bucket = { active: boolean; tests: ParsedTest[]; fv?: FvProfile; commento?: string; note?: string };
     const detailTables = sec.querySelectorAll("table").filter((t) => t.querySelector(".perc-badge"));
-    const bySession = new Map<string, { active: boolean; tests: ParsedTest[] }>();
+    const bySession = new Map<string, Bucket>();
+    const idxOf = (el: HTMLElement) => { const h = el.closest("[data-session-idx]"); return { idx: h ? h.getAttribute("data-session-idx") ?? "0" : "0", active: h ? !isHidden(h, sec) : true }; };
+    const bucketFor = (idx: string, active: boolean): Bucket => { const b = bySession.get(idx) ?? { active, tests: [] }; b.active = b.active || active; bySession.set(idx, b); return b; };
+
     for (const tb of detailTables) {
-      const holder = tb.closest("[data-session-idx]");
-      const idx = holder ? holder.getAttribute("data-session-idx") ?? "0" : "0";
-      const active = holder ? !isHidden(holder, sec) : true;
-      const bucket = bySession.get(idx) ?? { active, tests: [] };
-      bucket.active = bucket.active || active;
+      const { idx, active } = idxOf(tb);
+      const bucket = bucketFor(idx, active);
       for (const tr of tb.querySelectorAll("tr")) {
         const firstTd = tr.querySelector("td");
         const valEl = tr.querySelector(".font-bold.tabular-nums");
@@ -152,25 +182,50 @@ export function parseTestReport(html: string): ParsedReport {
         const percentile = percRaw ? parseInt(percRaw, 10) : null;
         if (!bucket.tests.some((t) => t.name === name)) bucket.tests.push({ name, value, unit, percentile });
       }
-      bySession.set(idx, bucket);
     }
+
+    // Profilo Carico-Velocità (F-V) per sessione, se eseguito.
+    for (const h3 of sec.querySelectorAll("h3").filter((e) => /carico-velocit/i.test(e.text))) {
+      const block = h3.parentNode as HTMLElement;
+      const fv = extractFv(block);
+      if (!fv) continue;
+      const { idx, active } = idxOf(block);
+      bucketFor(idx, active).fv = fv;
+    }
+    // Commento Tecnico / Note Preparatore per sessione.
+    const grabComment = (re: RegExp, key: "commento" | "note") => {
+      for (const h3 of sec.querySelectorAll("h3").filter((e) => re.test(e.text))) {
+        const block = h3.parentNode as HTMLElement;
+        const full = txt(block), head = txt(h3);
+        const t = (full.startsWith(head) ? full.slice(head.length) : full.replace(head, "")).trim();
+        if (!t) continue;
+        const { idx, active } = idxOf(block);
+        bucketFor(idx, active)[key] = t;
+      }
+    };
+    grabComment(/commento tecnico/i, "commento");
+    grabComment(/note preparatore/i, "note");
 
     const rawSessions: ParsedSession[] = [...bySession.entries()]
       .map(([idx, b]) => {
         const label = idxDate.get(idx) ?? "";
         const date = label ? toISO(label) : null;
         if (date && (!maxDateISO || date > maxDateISO)) maxDateISO = date;
-        return { date, label, active: b.active, tests: b.tests };
+        return { date, label, active: b.active, tests: b.tests, fv: b.fv, commento: b.commento, note: b.note };
       })
-      .filter((s) => s.tests.length > 0);
+      .filter((s) => s.tests.length > 0 || s.fv);
     // Dedup per data (il report a volte ripete la stessa sessione): tieni la più
-    // completa e marca attiva se una qualsiasi lo è.
+    // completa e unisci F-V/commenti; marca attiva se una qualsiasi lo è.
     const byDate = new Map<string, ParsedSession>();
     for (const s of rawSessions) {
       const key = s.date ?? s.label ?? "?";
       const ex = byDate.get(key);
       if (!ex) byDate.set(key, s);
-      else { if (s.tests.length > ex.tests.length) ex.tests = s.tests; ex.active = ex.active || s.active; }
+      else {
+        if (s.tests.length > ex.tests.length) ex.tests = s.tests;
+        ex.fv = ex.fv ?? s.fv; ex.commento = ex.commento ?? s.commento; ex.note = ex.note ?? s.note;
+        ex.active = ex.active || s.active;
+      }
     }
     const sessions = [...byDate.values()].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
 

@@ -56,7 +56,7 @@ export function ImportReportModal({ clientId, seedAthletes, parsed, fileName, on
         if (!date) continue;
         sessions.push({
           id: `${clientId}-ts-${aid}-${date}`, clientId, athleteId: aid, date, source: fileName,
-          kpi: s.active ? pa.kpi : null, measures: s.tests,
+          kpi: s.active ? pa.kpi : null, measures: s.tests, fv: s.fv, commento: s.commento, note: s.note,
         });
       }
       // Radar: aggiorna il profilo con i KPI del report (assi mancanti = tenuti dal profilo attuale).

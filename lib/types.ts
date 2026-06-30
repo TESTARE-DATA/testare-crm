@@ -497,6 +497,16 @@ export interface Measurement {
 export interface TestKpi { forza: number | null; potenza: number | null; reattivita: number | null; simmetria: number | null; pIndex: number | null }
 /** Una misura/test della batteria (valore testuale per supportare i bilaterali "147/131"). */
 export interface TestMeasure { name: string; value: string; unit: string; percentile: number | null }
+/** Punto del profilo Carico-Velocità (x = carico kg, y = velocità m/s). */
+export interface FvPoint { x: number; y: number }
+/** Profilo Forza-Velocità: retta di regressione, punti misurati, 1RM, pendenza e interpretazione. */
+export interface FvProfile {
+  slope: number | null; // pendenza della retta F-V
+  profile: string; // interpretazione (es. "Equilibrio F-V. Stimoli misti.")
+  measured: FvPoint[];
+  line: FvPoint[]; // 2 punti = retta di regressione
+  oneRm: FvPoint | null;
+}
 /** Una sessione di valutazione di un atleta, importata dal report e salvata nello storico. */
 export interface AthleteTestSession {
   id: string; // `${clientId}-ts-${athleteId}-${date}` → upsert idempotente per (atleta, data)
@@ -506,6 +516,9 @@ export interface AthleteTestSession {
   source: string; // nome file del report
   kpi: TestKpi | null; // presente per la sessione corrente (dalla tabella squadra)
   measures: TestMeasure[];
+  fv?: FvProfile; // Profilo Carico-Velocità (se eseguito in quella sessione)
+  commento?: string; // Commento Tecnico
+  note?: string; // Note Preparatore
 }
 
 // ---- Test -------------------------------------------------------------------
