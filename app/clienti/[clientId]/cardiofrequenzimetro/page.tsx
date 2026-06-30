@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { getAthletes, getGps } from "@/lib/data";
+import { getAthletes } from "@/lib/data";
+import { getMergedGps } from "@/lib/server-gps";
 import { PageHeader, Panel } from "@/components/ui";
 import { DailyView } from "@/components/data-analysis/DailyView";
 import { isMatchDay } from "@/lib/dataAnalysis";
@@ -11,7 +12,7 @@ export default async function CardioPage({ params }: { params: Promise<{ clientI
   if (!client) notFound();
 
   const athletes = getAthletes(clientId);
-  const gps = getGps(clientId);
+  const gps = await getMergedGps(clientId);
   const lite = athletes.map((a) => ({ id: a.id, firstName: a.firstName, lastName: a.lastName, role: a.role, shirtNumber: a.shirtNumber }));
 
   // Trend TRIMP squadra (longitudinale, di contesto).

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { getAthletes, getGps, getTests } from "@/lib/data";
+import { getAthletes, getTests } from "@/lib/data";
+import { getMergedGps } from "@/lib/server-gps";
 import { sectionHref } from "@/lib/nav";
 import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/ui";
@@ -11,7 +12,7 @@ export default async function DataAnalysisPage({ params }: { params: Promise<{ c
   const client = getClient(clientId);
   if (!client) notFound();
 
-  const gps = getGps(clientId);
+  const gps = await getMergedGps(clientId);
   const athletes = getAthletes(clientId);
   const tests = getTests(clientId);
   const sessions = new Set(gps.map((g) => g.date)).size;

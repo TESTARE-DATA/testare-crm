@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { getAthletes, getGps, getEvents, getSeedAttendance } from "@/lib/data";
+import { getAthletes, getEvents, getSeedAttendance } from "@/lib/data";
+import { getMergedGps } from "@/lib/server-gps";
 import { PageHeader, Panel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { CaricoPlanned } from "@/components/carico/CaricoPlanned";
@@ -13,7 +14,7 @@ export default async function CaricoPage({ params }: { params: Promise<{ clientI
   if (!client) notFound();
 
   const athletes = getAthletes(clientId);
-  const gps = getGps(clientId);
+  const gps = await getMergedGps(clientId);
   const lite = athletes.map((a) => ({ id: a.id, firstName: a.firstName, lastName: a.lastName, role: a.role, shirtNumber: a.shirtNumber }));
 
   // Trend squadra interno (longitudinale, di contesto sotto la vista giornaliera).

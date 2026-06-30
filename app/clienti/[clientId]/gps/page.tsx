@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { getAthletes, getGps } from "@/lib/data";
+import { getAthletes } from "@/lib/data";
+import { getMergedGps } from "@/lib/server-gps";
 import { sectionHref } from "@/lib/nav";
 import type { Athlete, GpsRecord, PlayerRole } from "@/lib/types";
 import { Icon } from "@/components/Icon";
@@ -16,7 +17,7 @@ export default async function GpsPage({ params }: { params: Promise<{ clientId: 
   if (!client) notFound();
 
   const athletes = getAthletes(clientId);
-  const gps = getGps(clientId);
+  const gps = await getMergedGps(clientId);
   const lite = athletes.map((a) => ({ id: a.id, firstName: a.firstName, lastName: a.lastName, role: a.role, shirtNumber: a.shirtNumber }));
 
   const dates = [...new Set(gps.map((g) => g.date))].sort();

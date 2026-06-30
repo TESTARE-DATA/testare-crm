@@ -1,6 +1,6 @@
 "use server";
 
-import { readCollection, upsertItem, removeItem } from "@/lib/db/collections";
+import { readCollection, upsertItem, upsertMany, removeItem } from "@/lib/db/collections";
 
 // ============================================================================
 // Server action sulle collezioni del DB. Sono il ponte tra i componenti client
@@ -19,4 +19,9 @@ export async function dbUpsert<T extends { id: string }>(key: string, item: T): 
 
 export async function dbRemove(key: string, id: string): Promise<void> {
   await removeItem(key, id);
+}
+
+/** Inserimento in blocco (import massivo): una sola scrittura per N entità. */
+export async function dbUpsertMany<T extends { id: string }>(key: string, items: T[]): Promise<number> {
+  return upsertMany(key, items);
 }
