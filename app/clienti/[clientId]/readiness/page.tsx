@@ -4,6 +4,7 @@ import { getClient } from "@/lib/clients";
 import { getAthletes } from "@/lib/data";
 import { getReadiness } from "@/lib/readiness";
 import { ReadinessClient } from "@/components/readiness/ReadinessClient";
+import { Methodology } from "@/components/readiness/Methodology";
 
 export default async function ReadinessPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = await params;
@@ -28,6 +29,8 @@ export default async function ReadinessPage({ params }: { params: Promise<{ clie
       </div>
 
       <ReadinessClient clientId={clientId} seed={seed} entries={entries} />
+
+      <Methodology />
     </div>
   );
 }

@@ -110,6 +110,7 @@ export const NAV: NavItem[] = [
   },
   { slug: "rd", label: "R&D", icon: "sparkle", description: "Data Intelligence: correlazioni e reportistica" },
   { slug: "importa-dati", label: "Importa Dati", icon: "upload", description: "Import da GPS, CSV, dispositivi" },
+  { slug: "vista-atleta", label: "Vista Atleta", icon: "phone", description: "Anteprima dell'app dell'atleta: check-in mattutino, readiness e carico (mobile)" },
 ];
 
 /** Tutte le foglie navigabili (utile per panoramica/scorciatoie). */
