@@ -10,12 +10,19 @@ export interface NavLeaf {
   description: string;
 }
 
+/** Sotto-etichetta dentro un gruppo (divide le voci in blocchi, es. "Data Analysis"). */
+export interface NavSubLabel {
+  subLabel: string;
+}
+
+export type NavChild = NavLeaf | NavSubLabel;
+
 export interface NavGroup {
   group: string;
   slug: string; // base del gruppo (landing)
   icon: string;
   description: string;
-  children: NavLeaf[];
+  children: NavChild[];
 }
 
 /** Intestazione di macro-dominio nel menu (solo etichetta, non navigabile). */
@@ -30,6 +37,9 @@ export function isGroup(item: NavItem): item is NavGroup {
 }
 export function isHeader(item: NavItem): item is NavHeader {
   return (item as NavHeader).header !== undefined;
+}
+export function isSubLabel(item: NavChild): item is NavSubLabel {
+  return (item as NavSubLabel).subLabel !== undefined;
 }
 
 export const NAV: NavItem[] = [
@@ -70,6 +80,7 @@ export const NAV: NavItem[] = [
     children: [
       { slug: "preparazione-atletica/esercizi", label: "Esercizi", icon: "dumbbell", description: "Esercizi di preparazione atletica" },
       { slug: "preparazione-atletica/template", label: "Template", icon: "layers", description: "Sedute di palestra" },
+      { subLabel: "Data Analysis" },
       { slug: "carico", label: "Carico", icon: "load", description: "Carico interno: sRPE e RPE degli allenamenti, carico settimanale" },
       { slug: "cardiofrequenzimetro", label: "Cardiofrequenzimetro", icon: "pulse", description: "Frequenza cardiaca, TRIMP e tempo nelle zone HR" },
       { slug: "gps", label: "GPS", icon: "live", description: "Carico esterno: distanza, alta velocità, sprint, PlayerLoad" },
@@ -95,7 +106,7 @@ export const NAV: NavItem[] = [
 
 /** Tutte le foglie navigabili (utile per panoramica/scorciatoie). */
 export const SECTION_LEAVES: NavLeaf[] = NAV.flatMap((i) =>
-  isHeader(i) ? [] : isGroup(i) ? i.children : i.slug === "" ? [] : [i],
+  isHeader(i) ? [] : isGroup(i) ? i.children.filter((c): c is NavLeaf => !isSubLabel(c)) : i.slug === "" ? [] : [i],
 );
 
 export function sectionHref(clientId: string, slug: string): string {

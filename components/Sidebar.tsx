@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CLIENTS } from "@/lib/clients";
-import { NAV, isGroup, isHeader, sectionHref, type NavLeaf } from "@/lib/nav";
+import { NAV, isGroup, isHeader, isSubLabel, sectionHref, type NavChild, type NavLeaf } from "@/lib/nav";
 import { isLeagueSupported } from "@/lib/leagues";
 import { BrandScope } from "./BrandScope";
 import { Icon } from "./Icon";
@@ -84,7 +84,7 @@ interface NavSectionData {
   header?: string; // etichetta di sezione (assente per voci sciolte senza header)
   icon?: string; // icona dell'header (solo per i gruppi navigabili)
   hub?: string; // slug della landing del gruppo (header cliccabile)
-  leaves: NavLeaf[];
+  leaves: NavChild[];
 }
 
 /** Normalizza il NAV in sezioni uniformi: ogni header/gruppo raccoglie le sue voci. */
@@ -111,7 +111,11 @@ function buildSections(clientId: string): NavSectionData[] {
 
 function NavSection({ clientId, section, pathname }: { clientId: string; section: NavSectionData; pathname: string }) {
   const { header, icon, hub, leaves } = section;
-  const leafList = leaves.map((c) => <Leaf key={c.slug || "home"} clientId={clientId} leaf={c} pathname={pathname} />);
+  const leafList = leaves.map((c, i) =>
+    isSubLabel(c)
+      ? <SubLabel key={`sub:${c.subLabel}:${i}`}>{c.subLabel}</SubLabel>
+      : <Leaf key={c.slug || "home"} clientId={clientId} leaf={c} pathname={pathname} />,
+  );
   return (
     <div className="mt-1 first:mt-0">
       {hub !== undefined ? (
@@ -143,6 +147,11 @@ function Leaf({ clientId, leaf, pathname }: { clientId: string; leaf: NavLeaf; p
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <div className="px-3 pb-1 pt-5 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-2">{children}</div>;
+}
+
+/** Sotto-etichetta dentro un gruppo (es. "Data Analysis" sotto Area Performance). */
+function SubLabel({ children }: { children: React.ReactNode }) {
+  return <div className="px-3 pb-0.5 pt-3 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-2/70">{children}</div>;
 }
 
 function NavLink({ href, icon, label, active, branded }: { href: string; icon: string; label: string; active: boolean; branded?: boolean }) {
