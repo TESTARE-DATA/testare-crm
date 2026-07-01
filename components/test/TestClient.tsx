@@ -58,11 +58,14 @@ export function TestClient({ clientId, athletes, clientLogo, clientName }: { cli
 const ANALYSIS_NAME = "Analisi della valutazione neuromuscolare";
 interface ReportFile { id: string; name: string; date: string; kind: "html" | "pdf"; url?: string; demo?: boolean }
 // Esempi VARIATI per mostrare l'illuminazione: completo (HTML+PDF), solo PDF, solo HTML.
+// I demo puntano a file reali in /public/reports così, cliccando, si apre davvero l'esempio.
+const DEMO_HTML = "/reports/esempio-valutazione.html";
+const DEMO_PDF = "/reports/esempio-valutazione.pdf";
 const SEED_REPORTS: ReportFile[] = [
-  { id: "seed-1", name: ANALYSIS_NAME, date: "2026-05-13", kind: "html", demo: true },
-  { id: "seed-1b", name: ANALYSIS_NAME, date: "2026-05-13", kind: "pdf", demo: true },
-  { id: "seed-2", name: ANALYSIS_NAME, date: "2026-01-20", kind: "pdf", demo: true },
-  { id: "seed-3", name: ANALYSIS_NAME, date: "2025-09-02", kind: "html", demo: true },
+  { id: "seed-1", name: ANALYSIS_NAME, date: "2026-05-13", kind: "html", url: DEMO_HTML, demo: true },
+  { id: "seed-1b", name: ANALYSIS_NAME, date: "2026-05-13", kind: "pdf", url: DEMO_PDF, demo: true },
+  { id: "seed-2", name: ANALYSIS_NAME, date: "2026-01-20", kind: "pdf", url: DEMO_PDF, demo: true },
+  { id: "seed-3", name: ANALYSIS_NAME, date: "2025-09-02", kind: "html", url: DEMO_HTML, demo: true },
 ];
 
 /** Nome pulito dal filename (senza estensione/date/separatori); fallback al nome standard. */
@@ -77,7 +80,7 @@ function cleanName(filename: string): string {
 function Archivio({ clientId, athletes, clientLogo, clientName }: { clientId: string; athletes: Athlete[]; clientLogo: string; clientName: string }) {
   const { items, add, remove } = useLocalCollection<ReportFile>(`test-reports:${clientId}`);
   const all = [...items, ...SEED_REPORTS].sort((a, b) => b.date.localeCompare(a.date));
-  const [report, setReport] = useState<{ parsed: ParsedReport; fileName: string } | null>(null);
+  const [report, setReport] = useState<{ parsed: ParsedReport; fileName: string; dataUrl: string } | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
   // Archivia il file così com'è (PDF, o HTML non riconosciuto come report TESTÀRE).
@@ -99,9 +102,14 @@ function Archivio({ clientId, athletes, clientLogo, clientName }: { clientId: st
         // HTML: prova a leggerlo come report di valutazione neuromuscolare → estrazione dati.
         const reader = new FileReader();
         reader.onload = () => {
-          const parsed = parseTestReport(String(reader.result));
-          if (parsed.ok && parsed.athletes.length) setReport({ parsed, fileName: f.name });
-          else archiveFile(f); // HTML non riconosciuto → archivia e basta
+          const text = String(reader.result);
+          const parsed = parseTestReport(text);
+          if (parsed.ok && parsed.athletes.length) {
+            // Conservo il contenuto come data URL così il report resta apribile
+            // dall'archivio anche dopo l'import (non solo un record di metadati).
+            const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(text)}`;
+            setReport({ parsed, fileName: f.name, dataUrl });
+          } else archiveFile(f); // HTML non riconosciuto → archivia e basta
         };
         reader.readAsText(f);
       } else {
@@ -113,7 +121,7 @@ function Archivio({ clientId, athletes, clientLogo, clientName }: { clientId: st
   // A conferma importazione: registra una voce nell'archivio (metadati; il file
   // completo non entra in localStorage per dimensione) e mostra l'esito.
   const onImported = (count: number) => {
-    if (report) add({ id: newId("rep"), name: ANALYSIS_NAME, date: report.parsed.reportDate ?? new Date().toISOString().slice(0, 10), kind: "html" });
+    if (report) add({ id: newId("rep"), name: ANALYSIS_NAME, date: report.parsed.reportDate ?? new Date().toISOString().slice(0, 10), kind: "html", url: report.dataUrl });
     setFlash(`Importati ${count} giocatori: valori salvati nello storico e nei radar.`);
     setReport(null);
     window.setTimeout(() => setFlash(null), 6000);
@@ -184,9 +192,28 @@ function Archivio({ clientId, athletes, clientLogo, clientName }: { clientId: st
   );
 }
 
+/** Apre il file in una nuova scheda. I data URL non sono navigabili direttamente
+ *  (i browser li bloccano come documento top-level) → li converto in blob URL. */
+function openReport(file: ReportFile) {
+  if (!file.url) return;
+  if (file.url.startsWith("data:")) {
+    fetch(file.url)
+      .then((r) => r.blob())
+      .then((b) => {
+        const u = URL.createObjectURL(b);
+        window.open(u, "_blank", "noopener");
+        window.setTimeout(() => URL.revokeObjectURL(u), 60_000);
+      })
+      .catch(() => {});
+    return;
+  }
+  window.open(file.url, "_blank", "noopener");
+}
+
 function FileBtn({ kind, file }: { kind: "html" | "pdf"; file?: ReportFile }) {
   const label = kind.toUpperCase();
   const icon = kind === "pdf" ? "clipboard" : "live";
+  // Nessun file di questo formato → tasto spento (non cliccabile).
   if (!file) {
     return (
       <span className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 text-[13px] font-semibold text-muted-2 opacity-50" title={`Nessun file ${label}`}>
@@ -194,18 +221,20 @@ function FileBtn({ kind, file }: { kind: "html" | "pdf"; file?: ReportFile }) {
       </span>
     );
   }
-  if (file.url) {
+  // File presente ma senza contenuto salvabile (es. quota localStorage superata):
+  // illuminato ma non apribile.
+  if (!file.url) {
     return (
-      <a href={file.url} target="_blank" rel="noopener" download={`${file.name}.${kind}`} className="brand-bg brand-on flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold shadow-sm transition-transform hover:scale-[1.03]">
+      <span className="brand-soft-bg brand-text flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold" title="File troppo grande per essere salvato localmente — ricaricalo per aprirlo">
         <Icon name={icon} size={14} /> {label}
-      </a>
+      </span>
     );
   }
-  // esempio (senza file reale): illuminato ma non apribile
+  // File disponibile → illuminato e cliccabile: apre il file annesso.
   return (
-    <span className="brand-soft-bg brand-text flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold" title="File di esempio — carica il file reale per aprirlo">
+    <button onClick={() => openReport(file)} className="brand-bg brand-on flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold shadow-sm transition-transform hover:scale-[1.03]" title={`Apri il file ${label}`}>
       <Icon name={icon} size={14} /> {label}
-    </span>
+    </button>
   );
 }
 
