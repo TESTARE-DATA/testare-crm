@@ -105,9 +105,10 @@ function StatusCard({ icon, title, done, doneLabel, todoLabel, onClick }: { icon
 }
 
 function Brand() {
-  // Favicon TESTÀRE — ritagliato ai margini, così a parità di box combacia col logo squadra.
+  // Favicon TESTÀRE — ritagliato ai margini (nuovo nome file = cache-bust). Box 36px
+  // così il segno sottile bilancia visivamente lo stemma pieno della squadra.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/logos/testare-favicon.png" alt="TESTÀRE" className="h-8 w-8 shrink-0 object-contain" />;
+  return <img src="/logos/testare-mark.png" alt="TESTÀRE" className="h-9 w-9 shrink-0 object-contain" />;
 }
 
 function ScreenOggi({ st, checkinDone, loadDone, clientName, clientLogo, onCheckin, onLoad }: { st: ReadinessState; checkinDone: boolean; loadDone: boolean; clientName: string; clientLogo: string; onCheckin: () => void; onLoad: () => void }) {
