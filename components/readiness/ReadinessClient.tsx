@@ -74,6 +74,19 @@ export function ReadinessClient({
     return map;
   }, [submissions, todayKey, ids]);
 
+  // Chi ha compilato il check-in di OGGI (lo compila l'atleta, non lo staff).
+  const compiledToday = useMemo(() => {
+    const s = new Set<string>();
+    histories.forEach((arr, id) => { if (arr.some((e) => e.date === todayKey)) s.add(id); });
+    return s;
+  }, [histories, todayKey]);
+  // Ultimi valori inviati (per precompilare la modifica).
+  const lastItems = useMemo(() => {
+    const m = new Map<string, Record<string, number>>();
+    for (const s of submissions) if (ids.has(s.athleteId)) m.set(s.athleteId, s.items); // ordine: l'ultimo vince
+    return m;
+  }, [submissions, ids]);
+
   const rows = useMemo(
     () => athletes.map((a) => ({ a, today: todayOf(a.id) })).sort((x, y) => (x.today ?? 999) - (y.today ?? 999)),
     [athletes, histories], // eslint-disable-line react-hooks/exhaustive-deps
@@ -168,8 +181,17 @@ export function ReadinessClient({
                   ) : (
                     <div className="w-16 shrink-0 text-right text-muted-2">—</div>
                   )}
-                  <button onClick={() => setCompiling(a)} className="brand-soft-bg brand-text rounded-lg px-2.5 py-1.5 text-[12px] font-semibold" title="Compila questionario">
-                    Compila
+                  {compiledToday.has(a.id) ? (
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[12px] font-semibold text-emerald-700" title="Check-in di oggi compilato dall'atleta">
+                      <Icon name="link" size={13} /> Compilato
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-background px-2.5 py-1.5 text-[12px] font-medium text-muted-2" title="In attesa del check-in dell'atleta">
+                      Non ancora
+                    </span>
+                  )}
+                  <button onClick={() => setCompiling(a)} className="rounded-lg p-1.5 text-muted-2 transition-colors hover:bg-background hover:text-foreground" title="Modifica il check-in dell'atleta">
+                    <Icon name="clipboard" size={16} />
                   </button>
                   <button onClick={() => setExpanded(isOpen ? null : a.id)} className="rounded-lg p-1.5 text-muted-2 transition-colors hover:bg-background" title="Andamento">
                     <Icon name="chevron" size={16} className={isOpen ? "rotate-90 transition-transform" : "transition-transform"} />
@@ -186,26 +208,30 @@ export function ReadinessClient({
         </ul>
       </div>
 
-      {compiling && <Questionnaire athlete={compiling} onClose={() => setCompiling(null)} onSave={saveQuestionnaire} />}
+      {compiling && <Questionnaire athlete={compiling} initial={lastItems.get(compiling.id)} compiled={compiledToday.has(compiling.id)} onClose={() => setCompiling(null)} onSave={saveQuestionnaire} />}
     </div>
   );
 }
 
 // ---- Check-in giornaliero ---------------------------------------------------
-function Questionnaire({ athlete, onClose, onSave }: { athlete: Athlete; onClose: () => void; onSave: (id: string, items: Record<string, number>, pains: string[]) => void }) {
-  const [items, setItems] = useState<Record<string, number>>(Object.fromEntries(WELLNESS.map((w) => [w.key, 3])));
+function Questionnaire({ athlete, initial, compiled, onClose, onSave }: { athlete: Athlete; initial?: Record<string, number>; compiled?: boolean; onClose: () => void; onSave: (id: string, items: Record<string, number>, pains: string[]) => void }) {
+  const [items, setItems] = useState<Record<string, number>>(initial ?? Object.fromEntries(WELLNESS.map((w) => [w.key, 3])));
   const [pains, setPains] = useState<string[]>([]);
   const score = computeReadiness(items);
   const tier = readinessTier(score);
 
   return (
     <Modal onClose={onClose} size="md">
-      <ModalHeader title={`Check-in giornaliero · ${athlete.name}`} onClose={onClose} />
+      <ModalHeader title={`Modifica check-in · ${athlete.name}`} onClose={onClose} />
       <div className="overflow-y-auto p-6">
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-dashed border-border bg-background/60 px-3.5 py-2.5 text-[12px] text-muted">
+          <Icon name="bell" size={15} className="mt-0.5 shrink-0 text-warn" />
+          Il check-in lo compila l&apos;atleta dalla sua app. Qui puoi solo <b className="mx-1">correggerlo</b> se ha inserito un dato sbagliato{compiled ? "" : " (oggi non risulta ancora compilato)"}.
+        </div>
         <div className="mb-5 flex items-center justify-between rounded-xl p-4" style={{ backgroundColor: tier.bg }}>
           <div>
             <div className="text-sm font-semibold">Readiness risultante</div>
-            <div className="text-[11px] text-muted">valuta i tuoi parametri da {SCALE_MIN} a {SCALE_MAX}</div>
+            <div className="text-[11px] text-muted">valori da {SCALE_MIN} a {SCALE_MAX}</div>
           </div>
           <span className="text-3xl font-extrabold" style={{ color: tier.color }}>{score}<span className="text-lg">%</span> <span className="ml-1 text-sm font-semibold">{tier.level}</span></span>
         </div>
@@ -253,7 +279,7 @@ function Questionnaire({ athlete, onClose, onSave }: { athlete: Athlete; onClose
 
         <div className="mt-6 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-background">Annulla</button>
-          <button onClick={() => onSave(athlete.id, items, pains.filter(Boolean))} className="brand-bg brand-on rounded-lg px-4 py-2 text-sm font-semibold">Registra Check-in</button>
+          <button onClick={() => onSave(athlete.id, items, pains.filter(Boolean))} className="brand-bg brand-on rounded-lg px-4 py-2 text-sm font-semibold">Salva modifiche</button>
         </div>
       </div>
     </Modal>
