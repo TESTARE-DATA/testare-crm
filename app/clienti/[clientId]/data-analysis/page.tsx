@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { getAthletes, getTests } from "@/lib/data";
+import { getAthletes } from "@/lib/data";
 import { getMergedGps } from "@/lib/server-gps";
 import { sectionHref } from "@/lib/nav";
 import { Icon } from "@/components/Icon";
@@ -14,7 +14,6 @@ export default async function DataAnalysisPage({ params }: { params: Promise<{ c
 
   const gps = await getMergedGps(clientId);
   const athletes = getAthletes(clientId);
-  const tests = getTests(clientId);
   const sessions = new Set(gps.map((g) => g.date)).size;
   const lastDate = [...gps.map((g) => g.date)].sort().pop();
   const todays = lastDate ? gps.filter((g) => g.date === lastDate) : [];
@@ -42,13 +41,6 @@ export default async function DataAnalysisPage({ params }: { params: Promise<{ c
       title: "GPS",
       desc: "Carico esterno: distanza, alta velocità, sprint, accel/decel e Player Load dai tracker. Leaderboard e medie per ruolo.",
       stat: `${lastKm} km ultima seduta`,
-    },
-    {
-      slug: "test",
-      icon: "stopwatch",
-      title: "Test e misura",
-      desc: "Valutazione neuromuscolare TESTÀRE (forza, potenza, reattività, simmetrie) e misurazioni interne della società.",
-      stat: `${tests.length} risultati`,
     },
   ];
 

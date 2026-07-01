@@ -40,6 +40,7 @@ export const NAV: NavItem[] = [
   { slug: "calendario", label: "Calendario", icon: "calendar", description: "30 giorni · sedute ed eventi" },
   { slug: "programmazione", label: "Piano di Allenamento", icon: "target", description: "Periodizzazione: macrociclo, mesocicli, microcicli e monitoraggio" },
   { slug: "readiness", label: "Readiness", icon: "trend", description: "Prontezza da questionario di benessere" },
+  { slug: "test", label: "Test e misura", icon: "stopwatch", description: "Performance, area medica, direzione sportiva e misure interne" },
   {
     group: "Registro Attività",
     slug: "registro-attivita",
@@ -94,7 +95,6 @@ export const NAV: NavItem[] = [
       { slug: "carico", label: "Carico", icon: "load", description: "Carico interno: sRPE e RPE degli allenamenti, carico settimanale" },
       { slug: "cardiofrequenzimetro", label: "Cardiofrequenzimetro", icon: "pulse", description: "Frequenza cardiaca, TRIMP e tempo nelle zone HR" },
       { slug: "gps", label: "GPS", icon: "live", description: "Carico esterno: distanza, alta velocità, sprint, PlayerLoad" },
-      { slug: "test", label: "Test e misura", icon: "stopwatch", description: "Valutazione neuromuscolare TESTÀRE e misurazioni interne" },
     ],
   },
   { slug: "rd", label: "R&D", icon: "sparkle", description: "Data Intelligence: correlazioni e reportistica" },

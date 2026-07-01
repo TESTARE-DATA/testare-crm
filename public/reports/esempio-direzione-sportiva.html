@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Report direzione sportiva — Esempio TESTÀRE</title>
+<style>
+  :root { --brand:#7c3aed; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --soft:#f5f3ff; }
+  *{box-sizing:border-box;} body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;color:var(--ink);background:#f8fafc;}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 64px;}
+  header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid var(--brand);padding-bottom:18px;}
+  header .brand{font-size:26px;font-weight:800;letter-spacing:.04em;} header .brand span{color:var(--brand);}
+  .tag{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);}
+  h1{font-size:22px;margin:28px 0 4px;} .sub{color:var(--muted);margin:0 0 24px;}
+  .note{background:#f5f3ff;border:1px solid #ddd6fe;color:#5b21b6;border-radius:12px;padding:12px 16px;font-size:13px;margin:0 0 28px;}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:0 0 26px;}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;}
+  .kpi b{display:block;font-size:26px;} .kpi span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.06);}
+  th,td{text-align:left;padding:12px 16px;font-size:14px;border-bottom:1px solid var(--line);}
+  th{background:var(--soft);color:var(--brand);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;}
+  tr:last-child td{border-bottom:none;}
+  footer{margin-top:40px;color:var(--muted);font-size:12px;text-align:center;}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">TEST<span>À</span>RE</div>
+      <div class="tag">Direzione Sportiva · Report di esempio</div>
+    </header>
+    <h1>Report direzione sportiva</h1>
+    <p class="sub">Sintesi rosa e monitoraggio · Empoli FC · 13 maggio 2026</p>
+    <p class="note">File di <strong>esempio</strong> per mostrare come si apre un report dall'archivio della Direzione Sportiva. Carica i documenti reali per popolare questa sezione.</p>
+    <div class="kpis">
+      <div class="kpi"><b>28</b><span>Atleti in rosa</span></div>
+      <div class="kpi"><b>67°</b><span>P-Index medio</span></div>
+      <div class="kpi"><b>24,3</b><span>Età media</span></div>
+    </div>
+    <table>
+      <thead><tr><th>Reparto</th><th>Atleti</th><th>Disponibili</th><th>P-Index medio</th></tr></thead>
+      <tbody>
+        <tr><td>Portieri</td><td>3</td><td>3</td><td>64°</td></tr>
+        <tr><td>Difensori</td><td>9</td><td>8</td><td>66°</td></tr>
+        <tr><td>Centrocampisti</td><td>8</td><td>7</td><td>69°</td></tr>
+        <tr><td>Attaccanti</td><td>8</td><td>8</td><td>68°</td></tr>
+      </tbody>
+    </table>
+    <footer>Report a cura della direzione sportiva — documento dimostrativo, dati non reali.</footer>
+  </div>
+</body>
+</html>
