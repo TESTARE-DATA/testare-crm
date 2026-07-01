@@ -43,16 +43,15 @@ function flagCount(k: PhysicalKpi): number {
   return n;
 }
 
-function statsOf(roster: Athlete[], rd: Record<string, number>): ClientStats {
+function statsOf(roster: Athlete[], teamRd: number): ClientStats {
   const c = (s: string) => roster.filter((a) => a.status === s).length;
-  const rdVals = roster.map((a) => rd[a.id]).filter((v): v is number => v != null);
   return {
     athletes: roster.length,
     available: c("disponibile"),
     injured: c("infortunato"),
     recovering: c("in recupero"),
     resting: c("a riposo"),
-    readiness: rdVals.length ? Math.round(rdVals.reduce((s, v) => s + v, 0) / rdVals.length) : 0,
+    readiness: teamRd, // readiness media squadra dal motore EBM (coerente con Panoramica/sezione Readiness)
     alert: roster.filter((a) => flagCount(a.profile) >= 2).length,
   };
 }
@@ -66,14 +65,14 @@ export function DashboardView({
 }: {
   clients: ClientMeta[];
   seeds: Record<string, Athlete[]>;
-  readiness: Record<string, Record<string, number>>;
+  readiness: Record<string, number>;
   events: Record<string, number>;
   todayLabel: string;
 }) {
   const rosters = useRostersByClient(seeds);
   const rows = clients.map((client) => ({
     client,
-    kpi: statsOf(rosters[client.id] ?? seeds[client.id] ?? [], readiness[client.id] ?? {}),
+    kpi: statsOf(rosters[client.id] ?? seeds[client.id] ?? [], readiness[client.id] ?? 0),
     events: events[client.id] ?? 0,
   }));
 
@@ -231,7 +230,7 @@ function ClientCard({ client, kpi }: { client: ClientMeta; kpi: ClientStats }) {
           <MiniStat label="Atleti" value={kpi.athletes} />
           <MiniStat label="Disp." value={kpi.available} />
           <MiniStat label="Infort." value={kpi.injured} tone={kpi.injured > 0 ? "warn" : undefined} />
-          <MiniStat label="Readiness" value={`${kpi.readiness}%`} color={readinessTier(kpi.readiness).color} />
+          <MiniStat label="Readiness" value={kpi.readiness} color={readinessTier(kpi.readiness).color} />
         </div>
 
         <div className="flex items-center justify-between border-t border-border px-5 py-3">

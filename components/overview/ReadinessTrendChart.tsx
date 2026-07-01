@@ -65,7 +65,7 @@ export function ReadinessTrendChart({ trend }: { trend: TrendPoint[] }) {
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-end gap-3">
           <div className="text-5xl font-extrabold leading-none tracking-tight" style={{ color: tier.color }}>
-            <CountUp value={today.avg} /><span className="text-2xl">%</span>
+            <CountUp value={today.avg} /><span className="text-2xl text-muted-2">/100</span>
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-semibold" style={{ color: tier.color, backgroundColor: tier.bg }}>
             <span className="dot-live h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tier.color }} /> {tier.level}
@@ -73,7 +73,7 @@ export function ReadinessTrendChart({ trend }: { trend: TrendPoint[] }) {
         </div>
         <div className="flex items-center gap-4 text-[12px] text-muted">
           <span>Periodo <b className="tnum text-foreground">{trend.length} gg</b></span>
-          <span>Min <b className="tnum text-foreground">{periodMin}%</b> · Max <b className="tnum text-foreground">{periodMax}%</b></span>
+          <span>Min <b className="tnum text-foreground">{periodMin}</b> · Max <b className="tnum text-foreground">{periodMax}</b></span>
           <span className="inline-flex items-center gap-1 font-semibold" style={{ color: delta > 0 ? "var(--good)" : delta < 0 ? "var(--bad)" : "var(--muted)" }}>
             {delta !== 0 && <Icon name="trend" size={13} />}
             <span className="tnum">{delta === 0 ? "—" : `${delta > 0 ? "+" : ""}${delta}`}</span> <span className="font-normal text-muted">vs inizio</span>
@@ -98,7 +98,7 @@ export function ReadinessTrendChart({ trend }: { trend: TrendPoint[] }) {
           {[lo, lo + span / 2, hi].map((gv) => (
             <g key={gv}>
               <line x1={padX} y1={y(gv)} x2={W - padX} y2={y(gv)} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 5" />
-              <text x={padX} y={y(gv) - 4} fontSize="10" fill="var(--muted-2)">{Math.round(gv)}%</text>
+              <text x={padX} y={y(gv) - 4} fontSize="10" fill="var(--muted-2)">{Math.round(gv)}</text>
             </g>
           ))}
 
@@ -136,7 +136,7 @@ export function ReadinessTrendChart({ trend }: { trend: TrendPoint[] }) {
             style={{ left: `${activeFrac * 100}%` }}
           >
             <div className="text-[10px] capitalize text-muted">{fmtLong(activePt.date)}</div>
-            <div className="text-sm font-bold tnum" style={{ color: readinessTier(activePt.avg).color }}>{activePt.avg}%</div>
+            <div className="text-sm font-bold tnum" style={{ color: readinessTier(activePt.avg).color }}>{activePt.avg}<span className="text-muted-2">/100</span></div>
           </div>
         )}
       </div>

@@ -50,8 +50,8 @@ export function OverviewTop({
   const unavailable = injured + recovering;
   const availPct = n ? Math.round((available / n) * 100) : 0;
 
-  const rdVals = athletes.map((a) => readiness[a.id]).filter((v): v is number => v != null);
-  const teamRd = rdVals.length ? Math.round(rdVals.reduce((s, v) => s + v, 0) / rdVals.length) : 0;
+  // Readiness squadra: stesso valore della sezione Readiness (ultimo punto del trend = media oggi dal motore EBM).
+  const teamRd = readinessTrend.length ? readinessTrend[readinessTrend.length - 1].avg : 0;
 
   const segs = [
     { n: available, color: "var(--good)", label: "Disponibili" },
@@ -87,7 +87,7 @@ export function OverviewTop({
             <span className="h-9 w-px bg-white/20" />
             <HeroMetric label="Disponibilità" value={availPct} suffix="%" />
             <span className="h-9 w-px bg-white/20" />
-            <HeroMetric label="Readiness" value={teamRd} suffix="%" />
+            <HeroMetric label="Readiness" value={teamRd} />
           </div>
         </div>
       </div>

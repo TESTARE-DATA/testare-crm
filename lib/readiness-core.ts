@@ -3,6 +3,8 @@
 // senza trascinare il data layer. Lo storico/seed sta in lib/readiness.ts.
 // ============================================================================
 
+import { SCORE_AMBER, SCORE_RED, FLAG_META } from "./readinessEngine-core";
+
 /** Scala del check-in: ogni parametro va da 1 a 6. */
 export const SCALE_MIN = 1;
 export const SCALE_MAX = 6;
@@ -61,11 +63,13 @@ export function computeReadiness(items: Record<string, number>): number {
   return Math.round(((sum - n * SCALE_MIN) / (n * (SCALE_MAX - SCALE_MIN))) * 100);
 }
 
-export type ReadinessLevel = "Ottima" | "Buona" | "Monitorare" | "Bassa";
+export type ReadinessLevel = "Nella norma" | "Sotto la norma" | "Molto sotto";
 
-export function readinessTier(pct: number): { level: ReadinessLevel; color: string; bg: string } {
-  if (pct >= 80) return { level: "Ottima", color: "var(--good)", bg: "rgba(22,163,74,.12)" };
-  if (pct >= 65) return { level: "Buona", color: "var(--elite)", bg: "rgba(8,145,178,.12)" };
-  if (pct >= 50) return { level: "Monitorare", color: "var(--warn)", bg: "rgba(217,119,6,.12)" };
-  return { level: "Bassa", color: "var(--bad)", bg: "rgba(220,38,38,.12)" };
+// Un'unica semantica in tutta l'app: soglie e colori sono quelli del motore EBM
+// (score 0–100 dove 50 = baseline individuale). Così Panoramica, Rosa, scheda
+// atleta e sezione Readiness mostrano SEMPRE lo stesso stato per lo stesso numero.
+export function readinessTier(score: number): { level: ReadinessLevel; color: string; bg: string } {
+  if (score >= SCORE_AMBER) return { level: "Nella norma", color: FLAG_META.green.color, bg: FLAG_META.green.bg };
+  if (score >= SCORE_RED) return { level: "Sotto la norma", color: FLAG_META.amber.color, bg: FLAG_META.amber.bg };
+  return { level: "Molto sotto", color: FLAG_META.red.color, bg: FLAG_META.red.bg };
 }

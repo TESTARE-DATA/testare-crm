@@ -8,7 +8,7 @@ import { newId } from "@/lib/store";
 import { useDbCollection } from "@/lib/useDbCollection";
 import { usePhotos, fileToDataUrl } from "@/lib/usePhotos";
 import { useAthleteEdits } from "@/lib/useAthleteEdits";
-import { readinessTier } from "@/lib/readiness";
+import { readinessTier } from "@/lib/readiness-core";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { Modal, ModalHeader } from "@/components/Modal";
@@ -126,7 +126,7 @@ export function RosaClient({ clientId, seed, readiness }: { clientId: string; se
                     </div>
                     {tier ? (
                       <div className="text-right">
-                        <div className="text-2xl font-extrabold leading-none" style={{ color: tier.color }}>{rd}<span className="text-sm">%</span></div>
+                        <div className="text-2xl font-extrabold leading-none" style={{ color: tier.color }}>{rd}</div>
                         <div className="text-[9px] uppercase tracking-wide text-muted-2">Readiness</div>
                       </div>
                     ) : (

@@ -10,6 +10,7 @@
 // ============================================================================
 
 import { getAthletes } from "./data";
+import { getReadinessEngine, getReadinessTeam, getAthleteReadinessState } from "./readinessEngine";
 import { WELLNESS, computeReadiness, SCALE_MIN, SCALE_MAX, type ReadinessEntry } from "./readiness-core";
 
 export { WELLNESS, computeReadiness, readinessTier, goodness, PAIN_OPTIONS, SCALE_MIN, SCALE_MAX } from "./readiness-core";
@@ -68,32 +69,42 @@ export function getReadiness(clientId: string): ReadinessEntry[] {
   return all(clientId);
 }
 
-/** Storico readiness di un atleta, dal più vecchio al più recente. */
+// ============================================================================
+// FONTE UNICA DI VERITÀ: i getter pubblici delegano al MOTORE EBM
+// (lib/readinessEngine). Così ogni sezione (Panoramica, Rosa, scheda atleta,
+// Area Medica, Programmazione, sezione Readiness, Vista Atleta) mostra lo STESSO
+// identico numero. Il seed legacy sopra resta solo per retrocompatibilità dei
+// tipi/UI che leggono ReadinessEntry; i valori vengono dal motore.
+// ============================================================================
+
+/** Storico readiness di un atleta (giorni compilati), dal più vecchio al più recente. */
 export function getAthleteReadiness(clientId: string, athleteId: string): ReadinessEntry[] {
-  return all(clientId).filter((e) => e.athleteId === athleteId).sort((a, b) => a.date.localeCompare(b.date));
+  const st = getAthleteReadinessState(clientId, athleteId);
+  if (!st) return [];
+  return st.history
+    .filter((h) => h.score != null)
+    .map((h) => ({ id: `${athleteId}-rd-${h.date}`, clientId, athleteId, date: h.date, items: {}, score: h.score as number }));
 }
 
-/** Readiness più recente per ogni atleta: { athleteId → % }. */
+/** Readiness attuale per ogni atleta: { athleteId → score EBM } (fallback all'ultimo dato noto). */
 export function getReadinessMap(clientId: string): Record<string, number> {
   const map: Record<string, number> = {};
-  for (const e of all(clientId)) map[e.athleteId] = e.score; // ordinati: l'ultimo vince
+  for (const s of getReadinessEngine(clientId)) {
+    const v = s.readinessScore ?? s.lastScore;
+    if (v != null) map[s.athlete.id] = v;
+  }
   return map;
 }
 
-/** Trend readiness media squadra per giorno. */
+/** Trend readiness media squadra per giorno (dal motore). */
 export function getTeamReadinessTrend(clientId: string): { date: string; avg: number }[] {
-  const byDate = new Map<string, number[]>();
-  for (const e of all(clientId)) {
-    if (!byDate.has(e.date)) byDate.set(e.date, []);
-    byDate.get(e.date)!.push(e.score);
-  }
-  return [...byDate.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, arr]) => ({ date, avg: Math.round(arr.reduce((s, x) => s + x, 0) / arr.length) }));
+  return getReadinessTeam(clientId).days
+    .filter((d): d is { date: string; avg: number; n: number } => d.avg != null)
+    .map((d) => ({ date: d.date, avg: d.avg }));
 }
 
-/** Readiness media squadra oggi (ultimo giorno disponibile). */
+/** Readiness media squadra oggi (dal motore). */
 export function getTeamReadiness(clientId: string): number {
-  const t = getTeamReadinessTrend(clientId);
-  return t.length ? t[t.length - 1].avg : 0;
+  const t = getReadinessTeam(clientId);
+  return t.todayAvg ?? t.avg14 ?? 0;
 }

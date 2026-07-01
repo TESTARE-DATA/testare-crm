@@ -176,7 +176,7 @@ function MedicalCard({ clientId, athlete: a, record: m, photo, rd }: { clientId:
         <div className="shrink-0 text-right">
           {tier ? (
             <>
-              <div className="text-2xl font-extrabold leading-none" style={{ color: tier.color }}>{rd}<span className="text-sm">%</span></div>
+              <div className="text-2xl font-extrabold leading-none" style={{ color: tier.color }}>{rd}</div>
               <div className="text-[9px] uppercase tracking-wide text-muted-2">Readiness</div>
             </>
           ) : (

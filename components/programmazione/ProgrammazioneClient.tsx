@@ -106,7 +106,7 @@ function MonitoraggioView({ clientId, athletes: seed, exercises, templates, gps,
                             <span className="font-medium">{a.lastName} <span className="font-normal text-muted">{a.firstName}</span></span>
                           </div>
                         </td>
-                        <td className="px-3 py-2.5">{rdT ? <span className="text-lg font-extrabold" style={{ color: rdT.color }}>{rd}%</span> : <span className="text-muted-2">—</span>}</td>
+                        <td className="px-3 py-2.5">{rdT ? <span className="text-lg font-extrabold" style={{ color: rdT.color }}>{rd}</span> : <span className="text-muted-2">—</span>}</td>
                         <td className="px-3 py-2.5">
                           <span className="brand-text font-bold">{a.profile.pIndex}°</span>
                           <div className="text-[10px] text-muted-2">{td ? `test ${fmtShort(td)}` : "no test"}</div>
@@ -216,7 +216,7 @@ function AthleteDetail({ clientId, athlete: a, readiness, testDate, assignments,
 
       {/* KPI monitoraggio */}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard label="Readiness" value={readiness != null ? `${readiness}%` : "—"} tone={readiness != null && readiness >= 65 ? "good" : "warn"} hint="wellness odierno" icon="trend" />
+        <StatCard label="Readiness" value={readiness != null ? readiness : "—"} tone={readiness != null && readinessTier(readiness).level === "Nella norma" ? "good" : "warn"} hint="score EBM (50 = baseline)" icon="trend" />
         <StatCard label="P-Index" value={`${p.pIndex}°`} tone="brand" hint={`${testDate ? `Test ${fmtShort(testDate)}` : "—"} · Δ ${dPI > 0 ? "+" : ""}${dPI}`} icon="trophy" />
         <StatCard label="Carico programmato" value={`${plannedWeek}`} hint="AU · settimana" icon="clipboard" />
         <StatCard label="Carico reale" value={`${actualWeek}`} hint="sRPE · settimana" tone="good" icon="load" />

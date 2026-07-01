@@ -5,7 +5,9 @@ import { getClient } from "@/lib/clients";
 import { getAthletes, getAthleteTests, getEvents, getGps, getMedical, getSeedAttendance, getTeamAverageKpi } from "@/lib/data";
 import { getResolvedAthletes } from "@/lib/server-roster";
 import { getAthleteMeasurements } from "@/lib/measurements";
-import { getAthleteReadiness, WELLNESS, SCALE_MAX } from "@/lib/readiness";
+import { getAthleteReadinessState } from "@/lib/readinessEngine";
+import { RE_QUESTIONNAIRE } from "@/lib/readinessEngine-core";
+import { ReadinessChart } from "@/components/readiness/ReadinessChart";
 import { sectionHref } from "@/lib/nav";
 import { KPI_LABEL, delta, flagsOf, tierOf, TIER_META, clusterOf } from "@/lib/perf";
 import { readCollection } from "@/lib/db/collections";
@@ -21,7 +23,6 @@ import { AthleteAgenda } from "@/components/rosa/AthleteAgenda";
 import { AthleteReport } from "@/components/rosa/AthleteReport";
 import { Icon } from "@/components/Icon";
 import { InteractiveRadar } from "@/components/InteractiveRadar";
-import { ProgressChart } from "@/components/programmazione/ProgressChart";
 import { DeltaPill, Panel } from "@/components/ui";
 
 const KEYS: (keyof PhysicalKpi)[] = ["forza", "potenza", "reattivita", "simmetria"];
@@ -48,10 +49,11 @@ export default async function AthletePage({ params }: { params: Promise<{ client
   const tierMeta = TIER_META[tier];
   const cluster = clusterOf(p);
 
-  const rdHistory = getAthleteReadiness(clientId, athleteId);
-  const rdLatest = rdHistory.length ? rdHistory[rdHistory.length - 1] : null;
-  const rdPrev = rdHistory.length > 1 ? rdHistory[rdHistory.length - 2].score : null;
-  const rdChart = rdHistory.map((e) => ({ label: fmtShort(e.date), value: e.score }));
+  // Readiness dal MOTORE EBM (stesso numero di Panoramica/Rosa/sezione Readiness).
+  const rdState = getAthleteReadinessState(clientId, athleteId);
+  const rdScore = rdState ? (rdState.readinessScore ?? rdState.lastScore) : null;
+  const rdPrev = rdState && rdState.deltaVsPrev != null && rdScore != null ? rdScore - rdState.deltaVsPrev : null;
+  const rdPoints = rdState ? rdState.history.map((h) => ({ date: h.date, score: h.score, flag: h.flag })) : [];
 
   const tests = getAthleteTests(athleteId);
   const medical = getMedical(clientId);
@@ -73,7 +75,7 @@ export default async function AthletePage({ params }: { params: Promise<{ client
       </Link>
 
       {/* Hero */}
-      <AthleteHeader clientId={clientId} athlete={a} rdScore={rdLatest?.score ?? null} rdPrev={rdPrev} />
+      <AthleteHeader clientId={clientId} athlete={a} rdScore={rdScore} rdPrev={rdPrev} />
 
       {/* 1 · Antropometria */}
       <Panel title="Antropometria" className="mb-6 brand-topline">
@@ -188,37 +190,49 @@ export default async function AthletePage({ params }: { params: Promise<{ client
         <AthleteMeasurements clientId={clientId} athleteId={athleteId} seed={getAthleteMeasurements(clientId, athleteId)} />
       </div>
 
-      {/* 4 · Readiness del singolo atleta */}
-      {rdLatest && (
+      {/* 4 · Readiness del singolo atleta (motore EBM, coerente con la sezione Readiness) */}
+      {rdState && rdScore != null && (
         <Panel
-          title="Readiness · andamento"
+          title="Readiness · andamento (14 giorni)"
           className="mb-6 brand-topline"
           action={<Link href={sectionHref(clientId, "readiness")} className="brand-text inline-flex items-center gap-1 text-[13px] font-semibold hover:underline">Readiness <Icon name="chevron" size={13} /></Link>}
         >
           <div className="grid gap-6 p-5 lg:grid-cols-3">
             <div className="lg:col-span-2">
-              <ProgressChart data={rdChart} unit="%" height={190} />
+              <div className="mb-2 flex flex-wrap items-center gap-3 text-[12px] text-muted">
+                <span>oggi <b>{rdScore}</b>/100</span>
+                {rdState.deltaVsPrev != null && <span className="inline-flex items-center gap-1">vs ieri <DeltaPill value={rdState.deltaVsPrev} significant={Math.abs(rdState.deltaVsPrev) >= 5} /></span>}
+                <span>50 = la sua media individuale</span>
+              </div>
+              <ReadinessChart points={rdPoints} height={190} />
             </div>
             <div>
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-2">Ultimo check-in</div>
-              <div className="space-y-2.5">
-                {WELLNESS.map((it) => {
-                  const v = rdLatest.items[it.key] ?? 0;
-                  return (
-                    <div key={it.key}>
-                      <div className="mb-1 flex items-center justify-between text-[12px]">
-                        <span className="flex items-center gap-1.5 font-medium">
-                          <span style={{ color: it.color }}><Icon name={it.icon} size={13} /></span> {it.label}
-                        </span>
-                        <span className="font-mono font-bold">{v}/{SCALE_MAX}</span>
+              {rdState.entry ? (
+                <div className="space-y-2.5">
+                  {RE_QUESTIONNAIRE.map((q) => {
+                    const raw = rdState.entry![q.key];
+                    if (raw == null) return null;
+                    const max = q.kind === "hours" ? 10 : 7;
+                    const label = q.kind === "hours" ? `${raw}h` : `${raw}/7`;
+                    return (
+                      <div key={q.key}>
+                        <div className="mb-1 flex items-center justify-between text-[12px]">
+                          <span className="flex items-center gap-1.5 font-medium">
+                            <span style={{ color: q.color }}><Icon name={q.icon} size={13} /></span> {q.label}
+                          </span>
+                          <span className="font-mono font-bold">{label}</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-background">
+                          <div className="h-full rounded-full" style={{ width: `${(Number(raw) / max) * 100}%`, backgroundColor: q.color }} />
+                        </div>
                       </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-background">
-                        <div className="h-full rounded-full" style={{ width: `${(v / SCALE_MAX) * 100}%`, backgroundColor: it.color }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[12px] text-muted">Check-in di oggi non ancora compilato. Ultimo dato disponibile: <b>{rdScore}</b>.</p>
+              )}
             </div>
           </div>
         </Panel>
@@ -244,7 +258,4 @@ function GpsTile({ icon, label, value, unit }: { icon: string; label: string; va
       <div className="mt-1.5 text-xl font-extrabold leading-none tnum">{value}{unit && <span className="ml-1 text-[12px] font-medium text-muted-2">{unit}</span>}</div>
     </div>
   );
-}
-function fmtShort(iso: string) {
-  return new Date(iso).toLocaleDateString("it-IT", { day: "numeric", month: "short" });
 }

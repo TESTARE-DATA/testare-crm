@@ -82,7 +82,7 @@ export function AthleteHeader({
         {rdScore != null && rdTier && (
           <div className="text-center">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">Readiness</div>
-            <div className="text-5xl font-extrabold leading-none" style={{ color: rdTier.color }}>{rdScore}<span className="text-2xl">%</span></div>
+            <div className="text-5xl font-extrabold leading-none" style={{ color: rdTier.color }}>{rdScore}<span className="text-xl text-muted-2">/100</span></div>
             {rdPrev != null && (
               <div className="mt-1 flex items-center justify-center gap-1">
                 <DeltaPill value={rdScore - rdPrev} significant={Math.abs(rdScore - rdPrev) >= 5} />

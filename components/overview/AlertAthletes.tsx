@@ -53,7 +53,7 @@ export function AlertAthletes({
                   <Avatar firstName={a.firstName} lastName={a.lastName} photoUrl={photos[a.id] ?? a.photoUrl} size={32} />
                   <div className="min-w-0 flex-1 transition-transform duration-200 group-hover/al:translate-x-0.5">
                     <div className="truncate text-sm font-semibold">{a.firstName} {a.lastName}</div>
-                    <div className="truncate text-[11px] text-muted">{a.role}{rd != null ? <> · readiness <span className="tnum">{rd}%</span></> : ""}</div>
+                    <div className="truncate text-[11px] text-muted">{a.role}{rd != null ? <> · readiness <span className="tnum">{rd}</span></> : ""}</div>
                   </div>
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[12px] font-bold text-amber-700 transition-transform duration-200 group-hover/al:scale-105">
                     <Icon name="medical" size={12} /> <span className="tnum">{flags.length}</span>
