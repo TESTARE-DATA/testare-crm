@@ -31,6 +31,7 @@ const PATHS: Record<string, string> = {
   battery: "M3 8h13a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zM22 11v2M6 11v2",
   bolt: "M13 2L4 14h7l-1 8 9-12h-7l1-8z",
   pulse: "M3 12h3l2-6 4 12 2-6h7",
+  soccer: "M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 7l4 3-1.5 5h-5L8 10zM12 7V3M16 10l4-1.2M14.5 15l2.6 3.2M9.5 15L6.9 18.2M8 10L4 8.8",
 };
 
 interface IconProps extends SVGProps<SVGSVGElement> {
