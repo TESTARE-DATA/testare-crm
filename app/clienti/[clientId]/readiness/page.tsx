@@ -1,8 +1,7 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { getAthletes } from "@/lib/data";
-import { getReadiness } from "@/lib/readiness";
+import { getReadinessEngine, getReadinessTeam } from "@/lib/readinessEngine";
 import { ReadinessClient } from "@/components/readiness/ReadinessClient";
 import { Methodology } from "@/components/readiness/Methodology";
 
@@ -11,8 +10,8 @@ export default async function ReadinessPage({ params }: { params: Promise<{ clie
   const client = getClient(clientId);
   if (!client) notFound();
 
-  const seed = getAthletes(clientId);
-  const entries = getReadiness(clientId).map((e) => ({ athleteId: e.athleteId, date: e.date, score: e.score }));
+  const states = getReadinessEngine(clientId);
+  const team = getReadinessTeam(clientId);
 
   return (
     <div className="mx-auto max-w-7xl fade-up">
@@ -25,10 +24,10 @@ export default async function ReadinessPage({ params }: { params: Promise<{ clie
           <span className="dot-live inline-flex h-1.5 w-1.5 rounded-full bg-white" /> Readiness · benessere quotidiano
         </div>
         <h1 className="relative mt-1 text-2xl font-extrabold tracking-tight">Prontezza · {client.name}</h1>
-        <p className="relative mt-1 text-[13px] opacity-85">Check-in giornaliero (sonno, recupero, stress, DOMS) → readiness % per atleta e squadra.</p>
+        <p className="relative mt-1 text-[13px] opacity-85">Check-in mattutino → readiness individuale (z-score sulla baseline dell&apos;atleta) per atleta e squadra.</p>
       </div>
 
-      <ReadinessClient clientId={clientId} seed={seed} entries={entries} />
+      <ReadinessClient clientId={clientId} states={states} team={team} />
 
       <Methodology />
     </div>

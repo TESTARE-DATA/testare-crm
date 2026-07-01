@@ -48,8 +48,10 @@ function genAthlete(a: Athlete, clientId: string): { wellness: WellnessEntry[]; 
   const wellness: WellnessEntry[] = [];
   const load: LoadSession[] = [];
   const item = (lvl: number, spread: number) => clamp(Math.round(lvl + (r() - 0.5) * spread), 1, 7);
+  const skipToday = r() < 0.18; // ~18% non ha ancora compilato il check-in di oggi
 
   for (let d = -GEN_DAYS + 1; d <= 0; d++) {
+    if (d === 0 && skipToday) { /* check-in di oggi non compilato */ } else {
     const inDip = dipDepth > 0 && d >= dipStart && d <= dipStart + 2;
     const lvl = baseLvl - (inDip ? dipDepth : 0);
     const doms = item(lvl, 2.4);
@@ -68,6 +70,7 @@ function genAthlete(a: Athlete, clientId: string): { wellness: WellnessEntry[]; 
       mood: hasMood ? item(lvl + 0.3, 1.8) : null,
       data_quality_flag: null,
     });
+    }
 
     const dow = (d % 7 + 7) % 7;
     const rest = dow === 0 || (dow === 3 && r() > 0.5);
@@ -214,11 +217,22 @@ function computeState(a: Athlete, clientId: string): ReadinessState {
 
   const alert = decide(today.flag, loadToday, clinical, dataQuality);
 
+  // Variazione vs GIORNO PRECEDENTE (non vs primo rilevamento) + ultimo dato noto.
+  const yScore = history[history.length - 2]?.score ?? null;
+  const deltaVsPrev = today.score != null && yScore != null ? today.score - yScore : null;
+  let lastScore: number | null = null;
+  let lastFlag: Flag = "green";
+  for (let i = history.length - 1; i >= 0; i--) { if (history[i].score != null) { lastScore = history[i].score; lastFlag = history[i].flag; break; } }
+
   return {
     athlete: a,
     date: day(0),
     baselineStatus: today.baselineValid >= RE_CONFIG.min_baseline_days ? "ready" : "provisional",
     baselineValidDays: today.baselineValid,
+    compiledToday: entry != null,
+    deltaVsPrev,
+    lastScore,
+    lastFlag,
     entry,
     z: today.z,
     readinessZ: today.readinessZ,
@@ -244,4 +258,28 @@ export function getReadinessEngine(clientId: string): ReadinessState[] {
 
 export function getAthleteReadinessState(clientId: string, athleteId: string): ReadinessState | null {
   return getReadinessEngine(clientId).find((s) => s.athlete.id === athleteId) ?? null;
+}
+
+/** Aggregato di SQUADRA (14 giorni): media giornaliera corretta (z→score), variazione
+ *  vs GIORNO PRECEDENTE, media 14 giorni, distribuzione flag e non-compilati. */
+export function getReadinessTeam(clientId: string): import("./readinessEngine-core").TeamReadiness {
+  const states = getReadinessEngine(clientId);
+  const dates = states[0]?.history.map((h) => h.date) ?? [];
+  const days = dates.map((date, i) => {
+    const scores = states.map((s) => s.history[i]?.score).filter((v): v is number => v != null);
+    return { date, avg: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null, n: scores.length };
+  });
+  const todayAvg = days[days.length - 1]?.avg ?? null;
+  const yestAvg = days[days.length - 2]?.avg ?? null;
+  const delta = todayAvg != null && yestAvg != null ? todayAvg - yestAvg : null;
+  const valid = days.map((d) => d.avg).filter((v): v is number => v != null);
+  const avg14 = valid.length ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : null;
+
+  const flagCounts = { green: 0, amber: 0, red: 0 };
+  let notCompiled = 0;
+  for (const s of states) {
+    if (!s.compiledToday) notCompiled++;
+    else flagCounts[s.flag]++;
+  }
+  return { days, todayAvg, delta, avg14, flagCounts, notCompiled, total: states.length };
 }

@@ -107,6 +107,10 @@ export interface ReadinessState {
   date: string;
   baselineStatus: "ready" | "provisional";
   baselineValidDays: number;
+  compiledToday: boolean;      // ha inviato il check-in di oggi?
+  deltaVsPrev: number | null;  // variazione punteggio vs GIORNO PRECEDENTE
+  lastScore: number | null;    // ultimo punteggio disponibile (per chi non ha compilato oggi)
+  lastFlag: Flag;
   entry: WellnessEntry | null;
   z: Partial<Record<ReItem, number>> | null;
   readinessZ: number | null;
@@ -121,7 +125,26 @@ export interface ReadinessState {
   history: DayPoint[]; // ultimi 14 giorni
 }
 
+export interface TeamReadiness {
+  days: { date: string; avg: number | null; n: number }[]; // media squadra per giorno (14 gg)
+  todayAvg: number | null;
+  delta: number | null;   // variazione vs GIORNO PRECEDENTE
+  avg14: number | null;   // media degli ultimi 14 giorni
+  flagCounts: { green: number; amber: number; red: number };
+  notCompiled: number;    // atleti senza check-in oggi
+  total: number;
+}
+
 export const SEVERITY_RANK: Record<Severity, number> = { clinical: 4, red: 3, amber: 2, quality: 1, green: 0 };
+
+/** Soglie punteggio 0–100 corrispondenti alle soglie z (score = 50 + display_scale·z). */
+export const SCORE_AMBER = 50 + RE_CONFIG.display_scale * RE_CONFIG.z_amber; // ≈ 35
+export const SCORE_RED = 50 + RE_CONFIG.display_scale * RE_CONFIG.z_red;     // ≈ 20
+
+/** Flag da punteggio 0–100 (per la media squadra, dove non c'è uno z composito). */
+export function flagFromScore(s: number): Flag {
+  return s >= SCORE_AMBER ? "green" : s >= SCORE_RED ? "amber" : "red";
+}
 
 export const FLAG_META: Record<Flag, { label: string; color: string; bg: string }> = {
   green: { label: "Verde", color: "var(--good)", bg: "rgba(22,163,74,.12)" },

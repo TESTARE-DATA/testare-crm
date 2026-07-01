@@ -33,6 +33,7 @@ const PATHS: Record<string, string> = {
   pulse: "M3 12h3l2-6 4 12 2-6h7",
   soccer: "M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 7l4 3-1.5 5h-5L8 10zM12 7V3M16 10l4-1.2M14.5 15l2.6 3.2M9.5 15L6.9 18.2M8 10L4 8.8",
   phone: "M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zM10.5 5h3M12 18.2h.01",
+  warning: "M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01",
 };
 
 interface IconProps extends SVGProps<SVGSVGElement> {

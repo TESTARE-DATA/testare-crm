@@ -1,112 +1,48 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Athlete as AthleteFull } from "@/lib/types";
 import { useLocalCollection, newId } from "@/lib/store";
 import { usePhotos } from "@/lib/usePhotos";
-import { useRoster } from "@/lib/useRoster";
-import { WELLNESS, computeReadiness, readinessTier, PAIN_OPTIONS, SCALE_MIN, SCALE_MAX, type ReadinessEntry } from "@/lib/readiness-core";
+import {
+  RE_QUESTIONNAIRE, DOMS_AREAS, RE_CONFIG, FLAG_META, flagFromScore,
+  type ReadinessState, type TeamReadiness, type ReItem, type Flag,
+} from "@/lib/readinessEngine-core";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { Modal, ModalHeader } from "@/components/Modal";
-import { ProgressChart } from "@/components/programmazione/ProgressChart";
+import { ReadinessChart, type RPoint } from "@/components/readiness/ReadinessChart";
 
-type Athlete = { id: string; name: string; first: string; last: string; role: string; shirt: number; status: string };
-type Entry = { athleteId: string; date: string; score: number };
+const levelOf = (flag: Flag) => (flag === "green" ? "Nella norma" : flag === "amber" ? "Sotto la norma" : "Molto sotto");
 
-export function ReadinessClient({
-  clientId,
-  seed,
-  entries,
-}: {
-  clientId: string;
-  seed: AthleteFull[];
-  entries: Entry[];
-}) {
-  const { items: submissions, add } = useLocalCollection<ReadinessEntry>(`readiness:${clientId}`);
+interface EditMark { id: string; athleteId: string; date: string }
+
+export function ReadinessClient({ clientId, states, team }: { clientId: string; states: ReadinessState[]; team: TeamReadiness }) {
   const { photos } = usePhotos(clientId);
-  const { athletes: resolved } = useRoster(clientId, seed);
-  const [compiling, setCompiling] = useState<Athlete | null>(null);
+  const { items: edits, add } = useLocalCollection<EditMark>(`readiness-edit:${clientId}`);
+  const [editing, setEditing] = useState<ReadinessState | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  // Rosa EFFETTIVA (riflette aggiunte/modifiche/rimozioni) → righe readiness.
-  const athletes: Athlete[] = useMemo(
-    () => resolved.map((a) => ({ id: a.id, name: `${a.firstName} ${a.lastName}`, first: a.firstName, last: a.lastName, role: a.role, shirt: a.shirtNumber, status: a.status })),
-    [resolved],
-  );
-  const ids = useMemo(() => new Set(athletes.map((a) => a.id)), [athletes]);
+  const today = states[0]?.date ?? "";
+  const markedToday = useMemo(() => new Set(edits.filter((e) => e.date === today).map((e) => e.athleteId)), [edits, today]);
+  const isCompiled = (s: ReadinessState) => s.compiledToday || markedToday.has(s.athlete.id);
 
-  const todayKey = useMemo(() => {
-    let m = "";
-    for (const e of entries) if (e.date > m) m = e.date;
-    for (const s of submissions) if (s.date > m) m = s.date;
-    return m || new Date().toISOString().slice(0, 10);
-  }, [entries, submissions]);
+  // Ordine: prima chi richiede attenzione (rosso→ambra), poi non compilati, infine verdi.
+  const rows = useMemo(() => {
+    const rank = (s: ReadinessState) => {
+      if (isCompiled(s)) return s.flag === "red" ? 0 : s.flag === "amber" ? 1 : 3;
+      return 2; // non compilato
+    };
+    return [...states].sort((a, b) => rank(a) - rank(b) || (a.readinessScore ?? a.lastScore ?? 999) - (b.readinessScore ?? b.lastScore ?? 999));
+  }, [states, markedToday]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Storico per atleta (seed) + override dalle compilazioni utente, SOLO rosa effettiva.
-  const histories = useMemo(() => {
-    const map = new Map<string, { date: string; score: number }[]>();
-    for (const e of entries) {
-      if (!ids.has(e.athleteId)) continue;
-      if (!map.has(e.athleteId)) map.set(e.athleteId, []);
-      map.get(e.athleteId)!.push({ date: e.date, score: e.score });
-    }
-    for (const s of submissions) {
-      if (!ids.has(s.athleteId)) continue;
-      const arr = map.get(s.athleteId) ?? [];
-      const i = arr.findIndex((x) => x.date === s.date);
-      if (i >= 0) arr[i] = { date: s.date, score: s.score };
-      else arr.push({ date: s.date, score: s.score });
-      map.set(s.athleteId, arr);
-    }
-    for (const [, arr] of map) arr.sort((a, b) => a.date.localeCompare(b.date));
-    return map;
-  }, [entries, submissions, ids]);
+  const teamFlag = team.todayAvg != null ? flagFromScore(team.todayAvg) : "green";
+  const teamPts: RPoint[] = team.days.map((d) => ({ date: d.date, score: d.avg, flag: d.avg != null ? flagFromScore(d.avg) : "green" }));
+  const watch = states.filter((s) => isCompiled(s) && s.flag !== "green").sort((a, b) => (a.readinessScore ?? 0) - (b.readinessScore ?? 0));
+  const notCompiled = states.filter((s) => !isCompiled(s));
 
-  const todayOf = (id: string) => {
-    const h = histories.get(id);
-    return h && h.length ? h[h.length - 1].score : null;
-  };
-
-  const painsToday = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const s of submissions) if (s.date === todayKey && s.pains?.length && ids.has(s.athleteId)) map.set(s.athleteId, s.pains);
-    return map;
-  }, [submissions, todayKey, ids]);
-
-  // Chi ha compilato il check-in di OGGI (lo compila l'atleta, non lo staff).
-  const compiledToday = useMemo(() => {
-    const s = new Set<string>();
-    histories.forEach((arr, id) => { if (arr.some((e) => e.date === todayKey)) s.add(id); });
-    return s;
-  }, [histories, todayKey]);
-  // Ultimi valori inviati (per precompilare la modifica).
-  const lastItems = useMemo(() => {
-    const m = new Map<string, Record<string, number>>();
-    for (const s of submissions) if (ids.has(s.athleteId)) m.set(s.athleteId, s.items); // ordine: l'ultimo vince
-    return m;
-  }, [submissions, ids]);
-
-  const rows = useMemo(
-    () => athletes.map((a) => ({ a, today: todayOf(a.id) })).sort((x, y) => (x.today ?? 999) - (y.today ?? 999)),
-    [athletes, histories], // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  // Trend squadra ricalcolato dalla rosa effettiva (per giorno).
-  const teamChart = useMemo(() => {
-    const byDate = new Map<string, number[]>();
-    for (const arr of histories.values()) for (const e of arr) { if (!byDate.has(e.date)) byDate.set(e.date, []); byDate.get(e.date)!.push(e.score); }
-    return [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, vals]) => ({ label: fmt(date), value: Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) }));
-  }, [histories]);
-
-  const scored = rows.filter((r) => r.today != null) as { a: Athlete; today: number }[];
-  const teamToday = teamChart.length ? teamChart[teamChart.length - 1].value : 0;
-  const teamTier = readinessTier(teamToday);
-  const watch = scored.filter((r) => r.today < 65);
-
-  function saveQuestionnaire(athleteId: string, items: Record<string, number>, pains: string[]) {
-    add({ id: newId("rd"), clientId, athleteId, date: todayKey, items, score: computeReadiness(items), pains });
-    setCompiling(null);
+  function saveEdit(athleteId: string) {
+    add({ id: newId("rded"), athleteId, date: today });
+    setEditing(null);
   }
 
   return (
@@ -114,33 +50,52 @@ export function ReadinessClient({
       {/* Squadra */}
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="card brand-topline p-5 lg:col-span-2">
-          <div className="mb-1 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Readiness squadra · ultimi {teamChart.length} giorni</h2>
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-semibold" style={{ color: teamTier.color, backgroundColor: teamTier.bg }}>
-              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: teamTier.color }} /> {teamToday}% · {teamTier.level}
-            </span>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold">Readiness squadra · ultimi {team.days.length} giorni</h2>
+              <div className="mt-1 flex items-baseline gap-2.5">
+                <span className="text-4xl font-extrabold leading-none" style={{ color: FLAG_META[teamFlag].color }}>{team.todayAvg ?? "—"}<span className="text-lg text-muted-2">/100</span></span>
+                {team.delta != null && <DeltaChip d={team.delta} />}
+              </div>
+              <div className="mt-1 text-[12px] text-muted-2">oggi · <span className="font-semibold text-foreground/70">media 14 gg: {team.avg14 ?? "—"}</span></div>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <FlagPill flag="green" n={team.flagCounts.green} />
+              <FlagPill flag="amber" n={team.flagCounts.amber} />
+              <FlagPill flag="red" n={team.flagCounts.red} />
+              {team.notCompiled > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[12px] font-semibold text-amber-700"><Icon name="warning" size={13} /> {team.notCompiled} non compilato</span>
+              )}
+            </div>
           </div>
-          <ProgressChart data={teamChart} unit="%" height={200} />
+          <ReadinessChart points={teamPts} height={210} />
+          <p className="mt-1 text-[11px] text-muted-2">50 = media individuale di ogni atleta. La readiness è lo z-score sulla baseline personale, non un valore assoluto.</p>
         </div>
 
+        {/* Da monitorare */}
         <div className="card p-5">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
             <Icon name="medical" size={16} className="text-warn" /> Da monitorare oggi
           </div>
-          {watch.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted">Nessun atleta sotto soglia. 👏</p>
+          {watch.length === 0 && notCompiled.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted">Tutti nella norma e check-in completi. 👏</p>
           ) : (
             <ul className="space-y-1.5">
-              {watch.map((r) => {
-                const t = readinessTier(r.today);
-                return (
-                  <li key={r.a.id} className="flex items-center gap-2.5 rounded-lg bg-background p-2">
-                    <Avatar firstName={r.a.first} lastName={r.a.last} photoUrl={photos[r.a.id]} size={28} />
-                    <span className="flex-1 truncate text-[13px] font-medium">{r.a.last}</span>
-                    <span className="text-sm font-bold" style={{ color: t.color }}>{r.today}%</span>
-                  </li>
-                );
-              })}
+              {watch.map((s) => (
+                <li key={s.athlete.id} className="flex items-center gap-2.5 rounded-lg bg-background p-2">
+                  <Avatar firstName={s.athlete.firstName} lastName={s.athlete.lastName} photoUrl={photos[s.athlete.id]} size={28} />
+                  <span className="flex-1 truncate text-[13px] font-medium">{s.athlete.lastName}</span>
+                  {s.clinicalFlag && <Icon name="medical" size={13} className="text-red-600" />}
+                  <span className="text-sm font-bold" style={{ color: FLAG_META[s.flag].color }}>{s.readinessScore}</span>
+                </li>
+              ))}
+              {notCompiled.map((s) => (
+                <li key={s.athlete.id} className="flex items-center gap-2.5 rounded-lg bg-amber-50/60 p-2">
+                  <Avatar firstName={s.athlete.firstName} lastName={s.athlete.lastName} photoUrl={photos[s.athlete.id]} size={28} />
+                  <span className="flex-1 truncate text-[13px] font-medium">{s.athlete.lastName}</span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700"><Icon name="warning" size={12} /> manca</span>
+                </li>
+              ))}
             </ul>
           )}
         </div>
@@ -150,56 +105,63 @@ export function ReadinessClient({
       <div className="card overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h2 className="text-sm font-semibold">Readiness per atleta</h2>
-          <span className="text-[12px] text-muted">ordinati per readiness</span>
+          <span className="text-[12px] text-muted">variazione vs giorno precedente</span>
         </div>
         <ul className="divide-y divide-border">
-          {rows.map(({ a, today }) => {
-            const h = histories.get(a.id) ?? [];
-            const t = today != null ? readinessTier(today) : null;
+          {rows.map((s) => {
+            const a = s.athlete;
+            const compiled = isCompiled(s);
+            const fm = FLAG_META[s.flag];
             const isOpen = expanded === a.id;
+            const scores = s.history.filter((h) => h.score != null).map((h) => h.score as number);
             return (
               <li key={a.id}>
                 <div className="flex items-center gap-4 px-5 py-3">
-                  <Avatar firstName={a.first} lastName={a.last} photoUrl={photos[a.id]} shirtNumber={a.shirt} size={40} />
+                  <Avatar firstName={a.firstName} lastName={a.lastName} photoUrl={photos[a.id]} shirtNumber={a.shirtNumber} size={40} />
                   <div className="min-w-0 flex-1 sm:flex-none sm:w-52">
-                    <div className="truncate text-sm font-semibold">{a.name}</div>
-                    <div className="flex items-center gap-2 text-[12px] text-muted">
+                    <div className="truncate text-sm font-semibold">{a.lastName} {a.firstName}</div>
+                    <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
                       <span>{a.role}</span>
-                      {painsToday.get(a.id)?.map((p) => (
-                        <span key={p} className="inline-flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-red-700" title={p}>
-                          <Icon name="medical" size={11} /> {p}
-                        </span>
-                      ))}
+                      {compiled && s.clinicalFlag && <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-red-700"><Icon name="medical" size={11} /> {s.clinicalFlag[0]}</span>}
+                      {compiled && s.baselineStatus === "provisional" && <span className="rounded-md bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-2">baseline in costruzione</span>}
                     </div>
                   </div>
-                  <div className="hidden min-w-0 flex-1 sm:block"><Sparkline points={h.map((x) => x.score)} /></div>
-                  {t ? (
-                    <div className="w-16 shrink-0 text-right">
-                      <div className="text-lg font-extrabold leading-none" style={{ color: t.color }}>{today}%</div>
-                      <div className="text-[10px] uppercase tracking-wide text-muted-2">{t.level}</div>
+                  <div className="hidden min-w-0 flex-1 sm:block"><Sparkline points={scores} /></div>
+
+                  {compiled ? (
+                    <>
+                      <div className="w-16 shrink-0 text-right">
+                        <div className="text-lg font-extrabold leading-none" style={{ color: fm.color }}>{s.readinessScore ?? s.lastScore ?? "—"}</div>
+                        <div className="text-[10px] uppercase tracking-wide text-muted-2">{levelOf(s.flag)}</div>
+                      </div>
+                      <div className="w-14 shrink-0 text-right">{s.deltaVsPrev != null ? <DeltaChip d={s.deltaVsPrev} sm /> : <span className="text-[11px] text-muted-2">—</span>}</div>
+                    </>
+                  ) : (
+                    <div className="flex shrink-0 items-center gap-2 rounded-lg bg-amber-50 px-2.5 py-1.5" title="Check-in di oggi non compilato dall'atleta">
+                      <Icon name="warning" size={16} className="text-amber-600" />
+                      <div className="leading-tight">
+                        <div className="text-[11px] font-semibold text-amber-700">Non compilato</div>
+                        {s.lastScore != null && <div className="text-[10px] text-amber-700/70">ultimo: {s.lastScore}</div>}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="w-16 shrink-0 text-right text-muted-2">—</div>
                   )}
-                  {compiledToday.has(a.id) ? (
-                    <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[12px] font-semibold text-emerald-700" title="Check-in di oggi compilato dall'atleta">
-                      <Icon name="link" size={13} /> Compilato
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-lg bg-background px-2.5 py-1.5 text-[12px] font-medium text-muted-2" title="In attesa del check-in dell'atleta">
-                      Non ancora
-                    </span>
-                  )}
-                  <button onClick={() => setCompiling(a)} className="rounded-lg p-1.5 text-muted-2 transition-colors hover:bg-background hover:text-foreground" title="Modifica il check-in dell'atleta">
+
+                  <button onClick={() => setEditing(s)} className="rounded-lg p-1.5 text-muted-2 transition-colors hover:bg-background hover:text-foreground" title="Correggi il check-in dell'atleta">
                     <Icon name="clipboard" size={16} />
                   </button>
-                  <button onClick={() => setExpanded(isOpen ? null : a.id)} className="rounded-lg p-1.5 text-muted-2 transition-colors hover:bg-background" title="Andamento">
+                  <button onClick={() => setExpanded(isOpen ? null : a.id)} className="rounded-lg p-1.5 text-muted-2 transition-colors hover:bg-background" title="Andamento 14 giorni">
                     <Icon name="chevron" size={16} className={isOpen ? "rotate-90 transition-transform" : "transition-transform"} />
                   </button>
                 </div>
-                {isOpen && h.length >= 2 && (
+                {isOpen && (
                   <div className="border-t border-border bg-background/40 px-5 py-4">
-                    <ProgressChart data={h.map((x) => ({ label: fmt(x.date), value: x.score }))} unit="%" height={170} />
+                    <div className="mb-2 flex flex-wrap items-center gap-3 text-[12px] text-muted">
+                      <span className="font-semibold text-foreground/80">Andamento readiness · 14 giorni</span>
+                      {s.readinessScore != null && <span>oggi <b style={{ color: fm.color }}>{s.readinessScore}</b></span>}
+                      {s.deltaVsPrev != null && <span className="inline-flex items-center gap-1">vs ieri <DeltaChip d={s.deltaVsPrev} sm /></span>}
+                      <span>load settimana <b>{s.load.weekly.toLocaleString("it-IT")}</b> A.U.{s.load.spike && <span className="ml-1 text-warn">· picco</span>}</span>
+                    </div>
+                    <ReadinessChart points={s.history.map((h) => ({ date: h.date, score: h.score, flag: h.flag }))} height={200} />
                   </div>
                 )}
               </li>
@@ -208,104 +170,95 @@ export function ReadinessClient({
         </ul>
       </div>
 
-      {compiling && <Questionnaire athlete={compiling} initial={lastItems.get(compiling.id)} compiled={compiledToday.has(compiling.id)} onClose={() => setCompiling(null)} onSave={saveQuestionnaire} />}
+      {editing && <EditModal state={editing} compiled={isCompiled(editing)} onClose={() => setEditing(null)} onSave={saveEdit} />}
     </div>
   );
 }
 
-// ---- Check-in giornaliero ---------------------------------------------------
-function Questionnaire({ athlete, initial, compiled, onClose, onSave }: { athlete: Athlete; initial?: Record<string, number>; compiled?: boolean; onClose: () => void; onSave: (id: string, items: Record<string, number>, pains: string[]) => void }) {
-  const [items, setItems] = useState<Record<string, number>>(initial ?? Object.fromEntries(WELLNESS.map((w) => [w.key, 3])));
-  const [pains, setPains] = useState<string[]>([]);
-  const score = computeReadiness(items);
-  const tier = readinessTier(score);
+function DeltaChip({ d, sm }: { d: number; sm?: boolean }) {
+  const color = d > 0 ? "var(--good)" : d < 0 ? "var(--bad)" : "var(--muted)";
+  return <span className={`font-bold ${sm ? "text-[12px]" : "text-[13px]"}`} style={{ color }}>{d > 0 ? "▲ +" : d < 0 ? "▼ " : "— "}{d !== 0 ? Math.abs(d) : ""}</span>;
+}
 
+function FlagPill({ flag, n }: { flag: Flag; n: number }) {
+  const fm = FLAG_META[flag];
   return (
-    <Modal onClose={onClose} size="md">
-      <ModalHeader title={`Modifica check-in · ${athlete.name}`} onClose={onClose} />
-      <div className="overflow-y-auto p-6">
-        <div className="mb-4 flex items-start gap-2 rounded-xl border border-dashed border-border bg-background/60 px-3.5 py-2.5 text-[12px] text-muted">
-          <Icon name="bell" size={15} className="mt-0.5 shrink-0 text-warn" />
-          Il check-in lo compila l&apos;atleta dalla sua app. Qui puoi solo <b className="mx-1">correggerlo</b> se ha inserito un dato sbagliato{compiled ? "" : " (oggi non risulta ancora compilato)"}.
-        </div>
-        <div className="mb-5 flex items-center justify-between rounded-xl p-4" style={{ backgroundColor: tier.bg }}>
-          <div>
-            <div className="text-sm font-semibold">Readiness risultante</div>
-            <div className="text-[11px] text-muted">valori da {SCALE_MIN} a {SCALE_MAX}</div>
-          </div>
-          <span className="text-3xl font-extrabold" style={{ color: tier.color }}>{score}<span className="text-lg">%</span> <span className="ml-1 text-sm font-semibold">{tier.level}</span></span>
-        </div>
-
-        <div className="space-y-5">
-          {WELLNESS.map((w) => (
-            <div key={w.key}>
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="flex items-center gap-2 text-sm font-semibold">
-                  <span style={{ color: w.color }}><Icon name={w.icon} size={18} /></span> {w.label}
-                </span>
-                <span className="text-xl font-extrabold" style={{ color: w.color }}>{items[w.key]}</span>
-              </div>
-              <input
-                type="range" min={SCALE_MIN} max={SCALE_MAX} step={1} value={items[w.key]}
-                onChange={(e) => setItems((s) => ({ ...s, [w.key]: +e.target.value }))}
-                className="w-full" style={{ accentColor: w.color }}
-              />
-              <div className="mt-0.5 flex justify-between text-[10px] font-semibold uppercase tracking-wide text-muted-2">
-                <span>{w.low}</span><span>{w.high}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Salute specifica */}
-        <div className="mt-5 border-t border-border pt-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-bold">Salute Specifica <span className="font-medium text-muted-2">(Opzionale)</span></span>
-            <button onClick={() => setPains((p) => [...p, ""])} className="rounded-full border border-border px-3 py-1 text-[12px] font-semibold transition-colors hover:bg-background">+ Aggiungi Dolore</button>
-          </div>
-          <p className="mt-1 text-[12px] text-muted">Hai dolori o fastidi particolari?</p>
-          <div className="mt-2 space-y-2">
-            {pains.map((p, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <select className="inp flex-1" value={p} onChange={(e) => setPains((arr) => arr.map((x, j) => (j === i ? e.target.value : x)))}>
-                  <option value="">Seleziona…</option>
-                  {PAIN_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-                <button onClick={() => setPains((arr) => arr.filter((_, j) => j !== i))} className="rounded-lg p-2 text-muted-2 hover:text-bad" title="Rimuovi">✕</button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-6 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-background">Annulla</button>
-          <button onClick={() => onSave(athlete.id, items, pains.filter(Boolean))} className="brand-bg brand-on rounded-lg px-4 py-2 text-sm font-semibold">Salva modifiche</button>
-        </div>
-      </div>
-    </Modal>
+    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ color: fm.color, backgroundColor: fm.bg }}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: fm.color }} /> {n}
+    </span>
   );
 }
 
-// ---- Sparkline (fluida: riempie la larghezza disponibile della riga) --------
+/** Mini-sparkline pulita (solo linea, colore per trend). */
 function Sparkline({ points }: { points: number[] }) {
   if (points.length < 2) return <div className="text-[11px] italic text-muted-2">storico insufficiente</div>;
-  const W = 600, H = 40;
+  const W = 560, H = 38;
   const min = Math.min(...points), max = Math.max(...points);
   const span = max - min || 1;
   const x = (i: number) => (i / (points.length - 1)) * W;
   const y = (v: number) => H - ((v - min) / span) * (H - 8) - 4;
   const line = points.map((v, i) => `${x(i)},${y(v)}`).join(" L ");
-  const area = `M ${x(0)},${H} L ${line} L ${x(points.length - 1)},${H} Z`;
-  const up = points[points.length - 1] >= points[0];
+  const up = points[points.length - 1] >= points[points.length - 2];
   const color = up ? "var(--good)" : "var(--bad)";
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" aria-hidden className="block">
-      <path d={area} fill={color} fillOpacity={0.1} />
+      <path d={`M ${line} L ${x(points.length - 1)},${H} L ${x(0)},${H} Z`} fill={color} fillOpacity={0.08} />
       <path d={`M ${line}`} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
 
-function fmt(iso: string) {
-  return new Date(iso).toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+// ---- Correzione staff (il check-in lo compila l'atleta) ---------------------
+function EditModal({ state, compiled, onClose, onSave }: { state: ReadinessState; compiled: boolean; onClose: () => void; onSave: (athleteId: string) => void }) {
+  const a = state.athlete;
+  const init = useMemo(() => {
+    const o: Record<ReItem, number> = { fatigue: 4, doms: 4, sleep_quality: 4, sleep_hours: 7.5, stress: 4, mood: 4 };
+    if (state.entry) for (const q of RE_QUESTIONNAIRE) { const v = state.entry[q.key]; if (typeof v === "number") o[q.key] = v; }
+    return o;
+  }, [state]);
+  const [vals, setVals] = useState<Record<ReItem, number>>(init);
+  const [areas, setAreas] = useState<string[]>(state.entry?.doms_area ?? []);
+
+  return (
+    <Modal onClose={onClose} size="md">
+      <ModalHeader title={`Correggi check-in · ${a.lastName} ${a.firstName}`} onClose={onClose} />
+      <div className="overflow-y-auto p-6">
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-dashed border-border bg-background/60 px-3.5 py-2.5 text-[12px] text-muted">
+          <Icon name="warning" size={15} className="mt-0.5 shrink-0 text-amber-600" />
+          Il check-in lo compila l&apos;atleta dalla sua app. Qui puoi solo <b className="mx-1">correggere</b> un dato o registrarlo per suo conto{compiled ? "" : " (oggi non risulta ancora compilato)"}.
+        </div>
+
+        <div className="space-y-4">
+          {RE_QUESTIONNAIRE.map((q) => (
+            <div key={q.key}>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-2 text-[13px] font-semibold"><span style={{ color: q.color }}><Icon name={q.icon} size={16} /></span> {q.label}</span>
+                <span className="font-mono text-[15px] font-extrabold" style={{ color: q.color }}>{q.kind === "hours" ? `${vals[q.key].toFixed(1)}h` : vals[q.key]}</span>
+              </div>
+              {q.kind === "hours" ? (
+                <input type="range" min={3.5} max={10} step={0.5} value={vals.sleep_hours} onChange={(e) => setVals((s) => ({ ...s, sleep_hours: Number(e.target.value) }))} className="w-full" style={{ accentColor: q.color }} />
+              ) : (
+                <>
+                  <input type="range" min={1} max={7} step={1} value={vals[q.key]} onChange={(e) => setVals((s) => ({ ...s, [q.key]: Number(e.target.value) }))} className="w-full" style={{ accentColor: q.color }} />
+                  <div className="mt-0.5 flex justify-between text-[10px] font-medium text-muted-2"><span>{q.anchors?.[0]}</span><span>{q.anchors?.[6]}</span></div>
+                </>
+              )}
+              {q.key === "doms" && vals.doms <= RE_CONFIG.doms_area_trigger && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {DOMS_AREAS.map((ar) => (
+                    <button key={ar} onClick={() => setAreas((p) => (p.includes(ar) ? p.filter((x) => x !== ar) : [...p, ar]))} className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${areas.includes(ar) ? "brand-bg brand-on" : "border border-border text-muted hover:bg-background"}`}>{ar}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-background">Annulla</button>
+          <button onClick={() => onSave(a.id)} className="brand-bg brand-on rounded-lg px-4 py-2 text-sm font-semibold">Salva correzione</button>
+        </div>
+      </div>
+    </Modal>
+  );
 }
