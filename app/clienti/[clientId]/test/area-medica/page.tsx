@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { PageHeader } from "@/components/ui";
+import { sectionHref } from "@/lib/nav";
+import { BackLink, PageHeader } from "@/components/ui";
 import { ReportArchive, type ReportFile } from "@/components/test/ReportArchive";
 
 const DEMO: ReportFile[] = [
@@ -14,6 +15,7 @@ export default async function TestAreaMedicaPage({ params }: { params: Promise<{
   if (!client) notFound();
   return (
     <div className="mx-auto max-w-[1100px] fade-up">
+      <BackLink href={sectionHref(clientId, "test")}>Test e misura</BackLink>
       <PageHeader title="Area Medica" subtitle="Report e referti dell'area medica inviati da TESTÀRE — archivio file" icon="medical" />
       <ReportArchive
         collection={`test-reports-medica:${clientId}`}

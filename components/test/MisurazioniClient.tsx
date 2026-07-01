@@ -63,7 +63,7 @@ export function MisurazioniClient({ clientId, seedAthletes, seedMeasurements, st
   return (
     <div className="mx-auto max-w-[1000px] fade-up">
       <Link href={sectionHref(clientId, "test")} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-foreground">
-        <Icon name="arrowLeft" size={15} /> Test e misurazioni
+        <Icon name="arrowLeft" size={15} /> Test e misura
       </Link>
       <PageHeader
         title="Misurazioni interne"

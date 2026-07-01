@@ -2,9 +2,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { getAthletes } from "@/lib/data";
+import { getResolvedAthletes } from "@/lib/server-roster";
 import { readCollection } from "@/lib/db/collections";
-import type { AthleteTestSession } from "@/lib/types";
+import { buildTestProfiles } from "@/lib/testProfiles";
+import type { Athlete, AthleteTestSession } from "@/lib/types";
 import { sectionHref } from "@/lib/nav";
 import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/ui";
@@ -14,16 +15,20 @@ export default async function TestHub({ params }: { params: Promise<{ clientId: 
   const client = getClient(clientId);
   if (!client) notFound();
 
-  const athletes = getAthletes(clientId);
-  const sessions = await readCollection<AthleteTestSession>(`athlete-tests:${clientId}`).catch(() => [] as AthleteTestSession[]);
-  const pAvg = athletes.length ? Math.round(athletes.reduce((s, a) => s + a.profile.pIndex, 0) / athletes.length) : 0;
+  const [seedResolved, created, sessions] = await Promise.all([
+    getResolvedAthletes(clientId),
+    readCollection<Athlete>(`athletes:${clientId}`).catch(() => [] as Athlete[]),
+    readCollection<AthleteTestSession>(`athlete-tests:${clientId}`).catch(() => [] as AthleteTestSession[]),
+  ]);
+  const profiles = buildTestProfiles([...seedResolved, ...created], sessions);
+  const pAvg = profiles.length ? Math.round(profiles.reduce((s, p) => s + (p.cur.pIndex ?? 0), 0) / profiles.length) : 0;
 
   const areas = [
     {
       slug: "test/performance",
       icon: "bolt",
       title: "Area Performance",
-      desc: "I nostri test neuromuscolari: statistiche di squadra, ranking, evoluzione e archivio dei report. Batteria TESTÀRE evidence-based (forza, potenza, reattività, simmetrie).",
+      desc: "I nostri test neuromuscolari certificati TESTÀRE: statistiche di squadra, ranking, evoluzione e archivio dei report.",
       tags: ["Forza", "Potenza", "Reattività", "Simmetrie"],
       stat: `${pAvg}° P-Index medio · ${sessions.length} sessioni`,
       primary: true,
@@ -33,8 +38,8 @@ export default async function TestHub({ params }: { params: Promise<{ clientId: 
       slug: "test/area-medica",
       icon: "medical",
       title: "Area Medica",
-      desc: "Report e referti dell'area medica: screening, disponibilità della rosa e sintesi cliniche. Archivio dei file inviati da TESTÀRE.",
-      tags: ["Referti", "Screening", "Disponibilità"],
+      desc: "Referti e report clinici dell'area medica: screening, disponibilità della rosa e sintesi inviate da TESTÀRE.",
+      tags: ["Referti", "Screening", "Disponibilità", "Sintesi"],
       stat: "Archivio report",
       testare: true,
     },
@@ -42,8 +47,8 @@ export default async function TestHub({ params }: { params: Promise<{ clientId: 
       slug: "test/direzione-sportiva",
       icon: "building",
       title: "Direzione Sportiva",
-      desc: "Report per la direzione sportiva: sintesi rosa, monitoraggio e reportistica gestionale. Archivio dei file inviati da TESTÀRE.",
-      tags: ["Rosa", "Monitoraggio", "Sintesi"],
+      desc: "Report gestionali per la direzione sportiva: sintesi rosa, monitoraggio e reportistica inviata da TESTÀRE.",
+      tags: ["Rosa", "Monitoraggio", "Sintesi", "Report"],
       stat: "Archivio report",
       testare: true,
     },
@@ -51,7 +56,7 @@ export default async function TestHub({ params }: { params: Promise<{ clientId: 
       slug: "test/misurazioni",
       icon: "clipboard",
       title: "Misure Interne",
-      desc: "Misure e test rapidi rilevati dallo staff durante l'anno — peso, plicometria, sprint, salti, mobilità — da annotare e monitorare atleta per atleta.",
+      desc: "Misure e test rapidi rilevati dallo staff durante l'anno: peso, plicometria, sprint, salti e mobilità, atleta per atleta.",
       tags: ["Antropometria", "Velocità", "Potenza", "Mobilità"],
       stat: "Rilevazioni libere",
     },
@@ -61,12 +66,12 @@ export default async function TestHub({ params }: { params: Promise<{ clientId: 
     <div className="mx-auto max-w-6xl fade-up">
       <PageHeader title="Test e misura" subtitle="Performance, area medica, direzione sportiva e misure interne della società" icon="stopwatch" />
 
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid gap-5 md:auto-rows-fr md:grid-cols-2">
         {areas.map((a) => (
           <Link
             key={a.slug}
             href={sectionHref(clientId, a.slug)}
-            className={`card card-hover sheen group relative flex flex-col overflow-hidden p-6 ${a.primary ? "md:col-span-2" : ""}`}
+            className="card card-hover sheen group relative flex h-full flex-col overflow-hidden p-6"
           >
             {a.primary && <div className="grad-line absolute inset-x-0 top-0" />}
             <div className="flex items-center justify-between">

@@ -6,13 +6,14 @@ import type { Athlete, PhysicalKpi, AthleteTestSession } from "@/lib/types";
 import { sectionHref } from "@/lib/nav";
 import { SWC, TIER_META, tierOf } from "@/lib/perf";
 import { DIM_META } from "@/lib/tests";
+import { buildTestProfiles, type TestProfile } from "@/lib/testProfiles";
 import { useLocalCollection, newId } from "@/lib/store";
 import { useDbCollection } from "@/lib/useDbCollection";
 import { putFile, deleteFile } from "@/lib/fileStore";
 import { extractDateFromDataUrl } from "@/lib/fileDate";
 import { parseTestReport, type ParsedReport } from "@/lib/testReport";
 import { Icon } from "@/components/Icon";
-import { PageHeader, StatCard, TierBadge } from "@/components/ui";
+import { BackLink, PageHeader, StatCard, TierBadge } from "@/components/ui";
 import { ImportReportModal } from "@/components/test/ImportReportModal";
 import { type ReportFile, FileBtn, fmtMonth, cleanName } from "@/components/test/ReportArchive";
 
@@ -31,12 +32,18 @@ const COLS: { key: keyof PhysicalKpi | "pIndex"; label: string }[] = [
   { key: "simmetria", label: "Simmetrie" },
   { key: "pIndex", label: "P-Index" },
 ];
+const DIMS: (keyof PhysicalKpi)[] = ["forza", "potenza", "reattivita", "simmetria"];
+
+const fmtShort = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "UTC" });
 
 export function TestClient({ clientId, athletes, clientLogo, clientName, initialSessions }: { clientId: string; athletes: Athlete[]; clientLogo: string; clientName: string; initialSessions?: AthleteTestSession[] }) {
   const [tab, setTab] = useState<Tab>("panoramica");
+  const { items: sessions } = useDbCollection<AthleteTestSession>(`athlete-tests:${clientId}`, initialSessions);
+  const profiles = useMemo(() => buildTestProfiles(athletes, sessions), [athletes, sessions]);
 
   return (
     <div className="mx-auto max-w-[1400px] fade-up">
+      <BackLink href={sectionHref(clientId, "test")}>Test e misura</BackLink>
       <PageHeader title="Area Performance" subtitle="Profilazione neuromuscolare — batteria TESTÀRE evidence-based (CEBM 1a–2b)" icon="bolt" />
 
       <div className="mb-5 inline-flex flex-wrap gap-1 rounded-2xl border border-border bg-surface p-1">
@@ -47,105 +54,122 @@ export function TestClient({ clientId, athletes, clientLogo, clientName, initial
         ))}
       </div>
 
-      {tab === "panoramica" && <Panoramica clientId={clientId} athletes={athletes} initialSessions={initialSessions} />}
-      {tab === "ranking" && <Ranking clientId={clientId} athletes={athletes} />}
-      {tab === "evoluzione" && <Evoluzione clientId={clientId} athletes={athletes} />}
+      {tab === "panoramica" && <Panoramica clientId={clientId} profiles={profiles} sessions={sessions} />}
+      {tab === "ranking" && <Ranking clientId={clientId} profiles={profiles} />}
+      {tab === "evoluzione" && <Evoluzione clientId={clientId} profiles={profiles} />}
       {tab === "archivio" && <Archivio clientId={clientId} athletes={athletes} clientLogo={clientLogo} clientName={clientName} />}
     </div>
   );
 }
 
-// ---- Panoramica: statistiche di squadra + distribuzione ---------------------
-function Panoramica({ clientId, athletes, initialSessions }: { clientId: string; athletes: Athlete[]; initialSessions?: AthleteTestSession[] }) {
-  const { items: sessions } = useDbCollection<AthleteTestSession>(`athlete-tests:${clientId}`, initialSessions);
+function EmptyReports() {
+  return (
+    <div className="card flex flex-col items-center gap-2 px-6 py-16 text-center">
+      <span className="brand-soft-bg brand-text flex h-12 w-12 items-center justify-center rounded-xl"><Icon name="upload" size={22} /></span>
+      <p className="mt-1 text-sm font-semibold">Nessuna valutazione in archivio</p>
+      <p className="max-w-md text-[13px] text-muted">Carica un report neuromuscolare nella tab <b>Archivio file</b>: da lì i valori di ogni atleta popolano automaticamente statistiche, ranking ed evoluzione.</p>
+    </div>
+  );
+}
 
-  // Numeri "reali" dai report importati (collezione athlete-tests).
+// ---- Panoramica: statistiche di squadra + distribuzione (dai report) --------
+function Panoramica({ clientId, profiles, sessions }: { clientId: string; profiles: TestProfile[]; sessions: AthleteTestSession[] }) {
   const sessionCount = sessions.length;
   const testCount = sessions.reduce((s, x) => s + (x.measures?.length ?? 0), 0);
   const lastTest = sessions.map((s) => s.date).sort().pop() ?? null;
 
-  // Numeri di profilo dalla rosa (sempre disponibili).
-  const pAvg = athletes.length ? Math.round(athletes.reduce((s, a) => s + a.profile.pIndex, 0) / athletes.length) : 0;
-  const dims: (keyof PhysicalKpi)[] = ["forza", "potenza", "reattivita", "simmetria"];
-  const dimAvg = dims.map((d) => ({ d, v: athletes.length ? Math.round(athletes.reduce((s, a) => s + a.profile[d], 0) / athletes.length) : 0 }));
-  const leaders = [...athletes].sort((a, b) => b.profile.pIndex - a.profile.pIndex).slice(0, 5);
+  const evaluated = profiles.length;
+  const pAvg = evaluated ? Math.round(profiles.reduce((s, p) => s + (p.cur.pIndex ?? 0), 0) / evaluated) : 0;
+  const dimAvg = DIMS.map((d) => {
+    const vals = profiles.map((p) => p.cur[d]).filter((v): v is number => v != null);
+    return { d, v: vals.length ? Math.round(vals.reduce((s, x) => s + x, 0) / vals.length) : null };
+  });
+  const leaders = profiles.slice(0, 5); // già ordinati per pIndex desc
 
   const tiers = ["Elite", "Buono", "Adeguato", "Critico"] as const;
-  const counts = tiers.map((t) => ({ t, n: athletes.filter((a) => tierOf(a.profile.pIndex) === t).length }));
+  const counts = tiers.map((t) => ({ t, n: profiles.filter((p) => tierOf(p.cur.pIndex ?? 0) === t).length }));
   const maxN = Math.max(1, ...counts.map((c) => c.n));
-
-  const fmtShort = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "UTC" });
 
   return (
     <div className="space-y-5">
       {/* Cards di sintesi */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Atleti" value={athletes.length} hint="in rosa" icon="users" />
-        <StatCard label="P-Index medio" value={`${pAvg}°`} hint={`su ${athletes.length} atleti`} icon="bolt" tone="brand" />
+        <StatCard label="Atleti valutati" value={evaluated} hint="con report in archivio" icon="users" />
+        <StatCard label="P-Index medio" value={`${pAvg}°`} hint={`su ${evaluated} atleti valutati`} icon="bolt" tone="brand" />
         <StatCard label="Ultimo test" value={<span className="text-2xl">{lastTest ? fmtShort(lastTest) : "—"}</span>} hint={lastTest ? "ultima sessione" : "nessuna sessione"} icon="calendar" />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <FeatureStat icon="dumbbell" label="Test somministrati" value={testCount.toLocaleString("it-IT")} tint="rose" hint="misure registrate nell'archivio" />
-        <FeatureStat icon="layers" label="Sessioni di test" value={sessionCount.toLocaleString("it-IT")} tint="brand" hint="valutazioni importate" />
+        <FeatureStat icon="dumbbell" label="Test somministrati" value={testCount.toLocaleString("it-IT")} tint="rose" hint="misure registrate nei report" />
+        <FeatureStat icon="layers" label="Sessioni di test" value={sessionCount.toLocaleString("it-IT")} tint="brand" hint="valutazioni in archivio" />
       </div>
 
-      {/* Profilo dimensioni + Leaderboard */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="card p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="flex items-center gap-2 text-sm font-bold"><Icon name="chart" size={15} className="brand-text" /> Profilo Dimensioni</h3>
-            <span className="text-[11px] text-muted-2">Media squadra</span>
-          </div>
-          <div className="space-y-4">
-            {dimAvg.map(({ d, v }) => (
-              <div key={d}>
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-[13px] font-semibold uppercase tracking-wide" style={{ color: DIM_META[d].color }}>{DIM_META[d].label}</span>
-                  <span className="text-xl font-extrabold" style={{ color: DIM_META[d].color }}>{v}</span>
-                </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-background">
-                  <div className="h-full rounded-full" style={{ width: `${v}%`, backgroundColor: DIM_META[d].color }} />
-                </div>
+      {evaluated === 0 ? (
+        <EmptyReports />
+      ) : (
+        <>
+          {/* Profilo dimensioni + Leaderboard */}
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="card p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="flex items-center gap-2 text-sm font-bold"><Icon name="chart" size={15} className="brand-text" /> Profilo Dimensioni</h3>
+                <span className="text-[11px] text-muted-2">Media atleti valutati</span>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="flex items-center gap-2 text-sm font-bold"><Icon name="trophy" size={15} className="brand-text" /> Leaderboard</h3>
-            <span className="text-[11px] text-muted-2">Top P-Index</span>
-          </div>
-          <div className="space-y-1.5">
-            {leaders.map((a, i) => (
-              <Link key={a.id} href={`${sectionHref(clientId, "rosa")}/${a.id}`} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${i === 0 ? "bg-amber-50 ring-1 ring-amber-200" : "hover:bg-background"}`}>
-                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${i === 0 ? "bg-amber-300 text-amber-900" : i === 1 ? "bg-slate-200 text-slate-700" : i === 2 ? "bg-orange-100 text-orange-700" : "bg-background text-muted-2"}`}>{i + 1}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] font-bold uppercase leading-tight">{a.lastName} {a.firstName}</div>
-                  <div className="text-[11px] text-muted-2">{tierOf(a.profile.pIndex)}</div>
-                </div>
-                <Ring value={a.profile.pIndex} />
-              </Link>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Distribuzione per fascia */}
-      <div className="card p-5">
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-bold"><Icon name="chart" size={15} className="brand-text" /> Distribuzione per fascia (P-Index)</h3>
-        <div className="flex items-end justify-around gap-3" style={{ height: 200 }}>
-          {counts.map(({ t, n }) => (
-            <div key={t} className="flex flex-1 flex-col items-center gap-2">
-              <span className="text-lg font-bold">{n}</span>
-              <div className="w-full rounded-t-lg" style={{ height: `${(n / maxN) * 140}px`, backgroundColor: TIER_META[t].color, minHeight: 4 }} />
-              <span className="text-[11px] font-medium" style={{ color: TIER_META[t].color }}>{t}</span>
-              <span className="text-[10px] text-muted-2">{TIER_META[t].range}</span>
+              <div className="space-y-4">
+                {dimAvg.map(({ d, v }) => (
+                  <div key={d}>
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-[13px] font-semibold uppercase tracking-wide" style={{ color: DIM_META[d].color }}>{DIM_META[d].label}</span>
+                      <span className="text-xl font-extrabold" style={{ color: DIM_META[d].color }}>{v ?? "—"}</span>
+                    </div>
+                    <div className="h-2.5 overflow-hidden rounded-full bg-background">
+                      <div className="h-full rounded-full" style={{ width: `${v ?? 0}%`, backgroundColor: DIM_META[d].color }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
+
+            <div className="card p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="flex items-center gap-2 text-sm font-bold"><Icon name="trophy" size={15} className="brand-text" /> Leaderboard</h3>
+                <span className="text-[11px] text-muted-2">Top P-Index</span>
+              </div>
+              <div className="space-y-1.5">
+                {leaders.map((p, i) => {
+                  const a = p.athlete;
+                  const pi = p.cur.pIndex ?? 0;
+                  return (
+                    <Link key={a.id} href={`${sectionHref(clientId, "rosa")}/${a.id}`} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${i === 0 ? "bg-amber-50 ring-1 ring-amber-200" : "hover:bg-background"}`}>
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${i === 0 ? "bg-amber-300 text-amber-900" : i === 1 ? "bg-slate-200 text-slate-700" : i === 2 ? "bg-orange-100 text-orange-700" : "bg-background text-muted-2"}`}>{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[14px] font-bold uppercase leading-tight">{a.lastName} {a.firstName}</div>
+                        <div className="text-[11px] text-muted-2">{tierOf(pi)}</div>
+                      </div>
+                      <Ring value={pi} />
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Distribuzione per fascia */}
+          <div className="card p-5">
+            <h3 className="mb-4 flex items-center gap-2 text-sm font-bold"><Icon name="chart" size={15} className="brand-text" /> Distribuzione per fascia (P-Index)</h3>
+            <div className="flex items-end justify-around gap-3" style={{ height: 200 }}>
+              {counts.map(({ t, n }) => (
+                <div key={t} className="flex flex-1 flex-col items-center gap-2">
+                  <span className="text-lg font-bold">{n}</span>
+                  <div className="w-full rounded-t-lg" style={{ height: `${(n / maxN) * 140}px`, backgroundColor: TIER_META[t].color, minHeight: 4 }} />
+                  <span className="text-[11px] font-medium" style={{ color: TIER_META[t].color }}>{t}</span>
+                  <span className="text-[10px] text-muted-2">{TIER_META[t].range}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -183,81 +207,151 @@ function Ring({ value }: { value: number }) {
   );
 }
 
-// ---- Ranking (sortable) -----------------------------------------------------
-function Ranking({ clientId, athletes }: { clientId: string; athletes: Athlete[] }) {
+// ---- Ranking (sortable, dai report) -----------------------------------------
+const cmpDesc = (a: number | null, b: number | null) => {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return b - a;
+};
+
+function Ranking({ clientId, profiles }: { clientId: string; profiles: TestProfile[] }) {
   const [sort, setSort] = useState<keyof PhysicalKpi | "pIndex">("pIndex");
-  const rows = useMemo(() => [...athletes].sort((a, b) => b.profile[sort] - a.profile[sort]), [athletes, sort]);
+  const rows = useMemo(() => [...profiles].sort((a, b) => cmpDesc(a.cur[sort], b.cur[sort])), [profiles, sort]);
+  const lastDate = profiles.map((p) => p.curDate).sort().pop();
+
+  if (!profiles.length) return <EmptyReports />;
 
   return (
     <div className="card overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3.5">
+        <h3 className="flex items-center gap-2 text-sm font-bold"><Icon name="trophy" size={15} className="brand-text" /> Ranking neuromuscolare</h3>
+        <span className="text-[12px] text-muted-2">{profiles.length} atleti valutati{lastDate ? ` · ultima valutazione ${fmtShort(lastDate)}` : ""}</span>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-[12px] uppercase tracking-wide text-muted-2">
-              <th className="px-4 py-2.5 font-semibold">#</th>
-              <th className="px-4 py-2.5 font-semibold">Atleta</th>
+            <tr className="border-b border-border bg-background/40 text-left text-[11px] uppercase tracking-wide text-muted-2">
+              <th className="px-4 py-3 font-semibold">#</th>
+              <th className="px-2 py-3 font-semibold">Atleta</th>
               {COLS.map((c) => (
-                <th key={c.key} className="px-3 py-2.5 font-semibold">
-                  <button onClick={() => setSort(c.key)} className={`inline-flex items-center gap-1 ${sort === c.key ? "brand-text" : "hover:text-foreground"}`}>
+                <th key={c.key} className={`px-3 py-3 font-semibold ${c.key === "pIndex" ? "border-l border-border" : ""}`}>
+                  <button onClick={() => setSort(c.key)} className={`inline-flex items-center gap-1 transition-colors ${sort === c.key ? "brand-text" : "hover:text-foreground"}`}>
                     {c.label} <span className="text-[9px]">{sort === c.key ? "▼" : "⇅"}</span>
                   </button>
                 </th>
               ))}
-              <th className="px-4 py-2.5 font-semibold">Tier</th>
+              <th className="px-4 py-3 font-semibold">Tier</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((a, i) => (
-              <tr key={a.id} className="border-b border-border last:border-0 hover:bg-background">
-                <td className="px-4 py-2.5 font-mono text-muted-2">{i + 1}</td>
-                <td className="px-4 py-2.5">
-                  <Link href={`${sectionHref(clientId, "rosa")}/${a.id}`} className="font-semibold hover:underline">{a.lastName} <span className="font-normal text-muted">{a.firstName}</span></Link>
-                </td>
-                {COLS.map((c) => (
-                  <td key={c.key} className="px-3 py-2.5">
-                    <Cell value={a.profile[c.key]} highlight={c.key === sort} big={c.key === "pIndex"} />
+            {rows.map((p, i) => {
+              const a = p.athlete;
+              const pi = p.cur.pIndex;
+              const medal = i === 0 ? "bg-amber-300 text-amber-900" : i === 1 ? "bg-slate-200 text-slate-700" : i === 2 ? "bg-orange-100 text-orange-700" : "bg-background text-muted-2";
+              return (
+                <tr key={a.id} className={`border-b border-border last:border-0 transition-colors hover:bg-background ${i === 0 ? "bg-amber-50/40" : ""}`}>
+                  <td className="px-4 py-3">
+                    <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${medal}`}>{i + 1}</span>
                   </td>
-                ))}
-                <td className="px-4 py-2.5"><TierBadge tier={tierOf(a.profile.pIndex)} /></td>
-              </tr>
-            ))}
+                  <td className="px-2 py-3">
+                    <Link href={`${sectionHref(clientId, "rosa")}/${a.id}`} className="flex items-center gap-2.5 group">
+                      <span className="brand-soft-bg brand-text flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold">{(a.lastName?.[0] ?? "") + (a.firstName?.[0] ?? "")}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold leading-tight group-hover:underline">{a.lastName} <span className="font-normal text-muted">{a.firstName}</span></span>
+                        <span className="block text-[10.5px] text-muted-2">{p.totalSessions} sessioni · {fmtShort(p.curDate)}</span>
+                      </span>
+                    </Link>
+                  </td>
+                  {COLS.map((c) => (
+                    <td key={c.key} className={`px-3 py-3 ${c.key === "pIndex" ? "border-l border-border" : ""}`}>
+                      <KpiCell value={p.cur[c.key]} dimKey={c.key} active={sort === c.key} big={c.key === "pIndex"} />
+                    </td>
+                  ))}
+                  <td className="px-4 py-3">{pi != null ? <TierBadge tier={tierOf(pi)} /> : <span className="text-[12px] text-muted-2">n/d</span>}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+      <p className="border-t border-border px-5 py-3 text-[11px] text-muted-2">Percentili 0–100° dalla valutazione più recente di ciascun atleta. Le celle vuote (n/d) sono test non eseguiti in quella sessione.</p>
     </div>
   );
 }
 
-function Cell({ value, highlight, big }: { value: number; highlight?: boolean; big?: boolean }) {
+function KpiCell({ value, dimKey, active, big }: { value: number | null; dimKey: keyof PhysicalKpi | "pIndex"; active?: boolean; big?: boolean }) {
+  if (value == null) return <span className="font-mono text-[13px] text-muted-2">n/d</span>;
+  const color = dimKey === "pIndex" ? "var(--brand-primary)" : DIM_META[dimKey as keyof PhysicalKpi].color;
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-10 overflow-hidden rounded-full bg-background">
-        <div className="h-full rounded-full" style={{ width: `${value}%`, backgroundColor: highlight || big ? "var(--brand-primary)" : "var(--muted-2)" }} />
+        <div className="h-full rounded-full" style={{ width: `${value}%`, backgroundColor: color }} />
       </div>
-      <span className={`font-mono ${big ? "font-bold" : highlight ? "brand-text font-semibold" : "text-muted"}`}>{value}°</span>
+      <span className="font-mono" style={{ color: big || active ? color : "var(--foreground)", fontWeight: big ? 800 : active ? 700 : 500 }}>{value}°</span>
     </div>
   );
 }
 
-// ---- Evoluzione -------------------------------------------------------------
-function Evoluzione({ clientId, athletes }: { clientId: string; athletes: Athlete[] }) {
-  const rows = useMemo(
-    () => athletes.map((a) => ({ a, prev: a.profile.prev.pIndex, cur: a.profile.pIndex, d: a.profile.pIndex - a.profile.prev.pIndex })).sort((x, y) => y.d - x.d),
-    [athletes],
-  );
+// ---- Evoluzione (confronto tra valutazioni successive, dai report) ----------
+function Evoluzione({ clientId, profiles }: { clientId: string; profiles: TestProfile[] }) {
+  const withPrev = profiles.filter((p) => p.prev && p.prev.pIndex != null);
+  const rows = withPrev
+    .map((p) => ({ p, prev: p.prev!.pIndex as number, cur: p.cur.pIndex as number, d: (p.cur.pIndex as number) - (p.prev!.pIndex as number) }))
+    .sort((x, y) => y.d - x.d);
   const improved = rows.filter((r) => r.d >= SWC).length;
   const declined = rows.filter((r) => r.d <= -SWC).length;
   const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.d)));
 
-  // Evoluzione media di squadra per dimensione (prev → attuale).
-  const dims: (keyof PhysicalKpi)[] = ["forza", "potenza", "reattivita", "simmetria"];
-  const dimEvo = dims.map((d) => {
-    const cur = athletes.length ? Math.round(athletes.reduce((s, a) => s + a.profile[d], 0) / athletes.length) : 0;
-    const prev = athletes.length ? Math.round(athletes.reduce((s, a) => s + a.profile.prev[d], 0) / athletes.length) : 0;
-    return { d, prev, cur, delta: cur - prev };
+  if (!profiles.length) return <EmptyReports />;
+
+  // Baseline: una sola valutazione per atleta → nessun confronto ancora possibile.
+  if (!rows.length) {
+    return (
+      <div className="space-y-5">
+        <div className="brand-soft-bg flex items-start gap-3 rounded-xl border border-dashed border-border p-4 text-[13px] text-foreground/80">
+          <Icon name="trend" size={18} className="brand-text mt-0.5 shrink-0" />
+          <div>L&apos;evoluzione confronta <b>due valutazioni successive</b>. Al momento c&apos;è una sola valutazione per atleta: questa è la <b>baseline di riferimento</b>. Dal prossimo report caricato comparirà il Δ P-Index (SWC ±{SWC}) per ciascuno.</div>
+        </div>
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-background/40 text-left text-[11px] uppercase tracking-wide text-muted-2">
+                  <th className="px-4 py-3 font-semibold">Atleta</th>
+                  <th className="px-3 py-3 font-semibold">P-Index</th>
+                  {DIMS.map((d) => <th key={d} className="px-3 py-3 font-semibold">{DIM_META[d].label}</th>)}
+                  <th className="px-3 py-3 font-semibold">Sessioni</th>
+                  <th className="px-4 py-3 font-semibold">Ultimo test</th>
+                </tr>
+              </thead>
+              <tbody>
+                {profiles.map((p) => (
+                  <tr key={p.athlete.id} className="border-b border-border last:border-0 hover:bg-background">
+                    <td className="px-4 py-3"><Link href={`${sectionHref(clientId, "rosa")}/${p.athlete.id}`} className="font-medium hover:underline">{p.athlete.lastName} <span className="font-normal text-muted">{p.athlete.firstName}</span></Link></td>
+                    <td className="px-3 py-3"><span className="brand-text font-mono text-[15px] font-extrabold">{p.cur.pIndex}°</span></td>
+                    {DIMS.map((d) => <td key={d} className="px-3 py-3 font-mono text-[13px]" style={{ color: p.cur[d] != null ? DIM_META[d].color : "var(--muted-2)" }}>{p.cur[d] != null ? `${p.cur[d]}°` : "n/d"}</td>)}
+                    <td className="px-3 py-3 font-mono text-muted">{p.totalSessions}</td>
+                    <td className="px-4 py-3 font-mono text-muted">{fmtShort(p.curDate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Confronto disponibile (≥2 valutazioni per almeno un atleta).
+  const dimEvo = DIMS.map((d) => {
+    const pairs = withPrev.filter((p) => p.cur[d] != null && p.prev![d] != null);
+    const cur = pairs.length ? Math.round(pairs.reduce((s, p) => s + (p.cur[d] as number), 0) / pairs.length) : null;
+    const prev = pairs.length ? Math.round(pairs.reduce((s, p) => s + (p.prev![d] as number), 0) / pairs.length) : null;
+    return { d, prev, cur, delta: cur != null && prev != null ? cur - prev : null };
   });
-  const teamPrev = athletes.length ? Math.round(athletes.reduce((s, a) => s + a.profile.prev.pIndex, 0) / athletes.length) : 0;
-  const teamCur = athletes.length ? Math.round(athletes.reduce((s, a) => s + a.profile.pIndex, 0) / athletes.length) : 0;
+  const teamPrev = Math.round(withPrev.reduce((s, p) => s + (p.prev!.pIndex as number), 0) / withPrev.length);
+  const teamCur = Math.round(withPrev.reduce((s, p) => s + (p.cur.pIndex as number), 0) / withPrev.length);
 
   return (
     <div className="space-y-5">
@@ -275,31 +369,22 @@ function Evoluzione({ clientId, athletes }: { clientId: string; athletes: Athlet
         </div>
       </div>
 
-      {/* Evoluzione per dimensione */}
       <div className="card p-5">
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-bold"><Icon name="trend" size={15} className="brand-text" /> Evoluzione media di squadra per dimensione</h3>
+        <h3 className="mb-4 flex items-center gap-2 text-sm font-bold"><Icon name="trend" size={15} className="brand-text" /> Evoluzione media per dimensione</h3>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {dimEvo.map(({ d, prev, cur, delta }) => (
             <div key={d} className="rounded-xl border border-border p-4">
               <div className="mb-2 text-[12px] font-semibold uppercase tracking-wide" style={{ color: DIM_META[d].color }}>{DIM_META[d].label}</div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-extrabold">{cur}</span>
-                <DeltaTag d={delta} />
+                <span className="text-2xl font-extrabold">{cur ?? "—"}</span>
+                {delta != null && <DeltaTag d={delta} />}
               </div>
-              <div className="mt-1 text-[11px] text-muted-2">era {prev}</div>
-              <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-2">
-                <span className="font-mono">{prev}</span>
-                <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-background">
-                  <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, cur)}%`, backgroundColor: DIM_META[d].color }} />
-                </div>
-                <span className="font-mono font-semibold">{cur}</span>
-              </div>
+              <div className="mt-1 text-[11px] text-muted-2">era {prev ?? "—"}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Dettaglio per atleta */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -313,11 +398,11 @@ function Evoluzione({ clientId, athletes }: { clientId: string; athletes: Athlet
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ a, prev, cur, d }) => {
+              {rows.map(({ p, prev, cur, d }) => {
                 const sig = Math.abs(d) >= SWC;
                 return (
-                  <tr key={a.id} className="border-b border-border last:border-0 hover:bg-background">
-                    <td className="px-4 py-2.5"><Link href={`${sectionHref(clientId, "rosa")}/${a.id}`} className="font-medium hover:underline">{a.lastName}</Link></td>
+                  <tr key={p.athlete.id} className="border-b border-border last:border-0 hover:bg-background">
+                    <td className="px-4 py-2.5"><Link href={`${sectionHref(clientId, "rosa")}/${p.athlete.id}`} className="font-medium hover:underline">{p.athlete.lastName}</Link></td>
                     <td className="px-4 py-2.5 font-mono text-muted">{prev}°</td>
                     <td className="px-4 py-2.5 font-mono font-semibold">{cur}°</td>
                     <td className="px-4 py-2.5">
@@ -336,7 +421,7 @@ function Evoluzione({ clientId, athletes }: { clientId: string; athletes: Athlet
           </table>
         </div>
       </div>
-      <p className="text-[11px] text-muted-2">Hopkins 2006: δ significativo se |Δ| &gt; 0.2 × SD ≈ {SWC} pts P-Index. Δ &gt; SWC → probabile cambio reale (ripetere per validare). Δ &lt; SWC → rumore, nessuna azione.</p>
+      <p className="text-[11px] text-muted-2">Hopkins 2006: δ significativo se |Δ| &gt; 0.2 × SD ≈ {SWC} pts P-Index. Δ &gt; SWC → probabile cambio reale. Δ &lt; SWC → rumore, nessuna azione.</p>
     </div>
   );
 }

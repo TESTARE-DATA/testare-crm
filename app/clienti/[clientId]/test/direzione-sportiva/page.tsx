@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
-import { PageHeader } from "@/components/ui";
+import { sectionHref } from "@/lib/nav";
+import { BackLink, PageHeader } from "@/components/ui";
 import { ReportArchive, type ReportFile } from "@/components/test/ReportArchive";
 
 const DEMO: ReportFile[] = [
@@ -14,6 +15,7 @@ export default async function TestDirezioneSportivaPage({ params }: { params: Pr
   if (!client) notFound();
   return (
     <div className="mx-auto max-w-[1100px] fade-up">
+      <BackLink href={sectionHref(clientId, "test")}>Test e misura</BackLink>
       <PageHeader title="Direzione Sportiva" subtitle="Report per la direzione sportiva inviati da TESTÀRE — archivio file" icon="building" />
       <ReportArchive
         collection={`test-reports-ds:${clientId}`}

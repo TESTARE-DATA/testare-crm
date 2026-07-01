@@ -113,6 +113,15 @@ export function Panel({
 }
 
 // ---- Link "vai a" (collega le sezioni tra loro) -----------------------------
+/** Link "torna indietro" per le sotto-sezioni (es. da un'area di Test e misura all'hub). */
+export function BackLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link href={href} className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted transition-colors hover:text-foreground">
+      <Icon name="arrowLeft" size={15} /> {children}
+    </Link>
+  );
+}
+
 export function CrossLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
