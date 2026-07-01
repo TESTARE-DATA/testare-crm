@@ -66,10 +66,13 @@ export const NAV: NavItem[] = [
     group: "Area Performance",
     slug: "preparazione-atletica",
     icon: "dumbbell",
-    description: "Palestra: forza, potenza, prevenzione",
+    description: "Palestra e analisi dei dati: forza e potenza, carico, cuore e GPS",
     children: [
       { slug: "preparazione-atletica/esercizi", label: "Esercizi", icon: "dumbbell", description: "Esercizi di preparazione atletica" },
       { slug: "preparazione-atletica/template", label: "Template", icon: "layers", description: "Sedute di palestra" },
+      { slug: "carico", label: "Carico", icon: "load", description: "Carico interno: sRPE e RPE degli allenamenti, carico settimanale" },
+      { slug: "cardiofrequenzimetro", label: "Cardiofrequenzimetro", icon: "pulse", description: "Frequenza cardiaca, TRIMP e tempo nelle zone HR" },
+      { slug: "gps", label: "GPS", icon: "live", description: "Carico esterno: distanza, alta velocità, sprint, PlayerLoad" },
     ],
   },
   {
@@ -84,17 +87,6 @@ export const NAV: NavItem[] = [
       { slug: "area-medica/storico", label: "Storico infortuni", icon: "calendar", description: "Archivio stagionale degli infortuni conclusi" },
       { slug: "area-medica/esercizi-trattamenti", label: "Esercizi e trattamenti", icon: "dumbbell", description: "Libreria riabilitativa" },
       { slug: "area-medica/template", label: "Template", icon: "layers", description: "Protocolli riabilitativi" },
-    ],
-  },
-  {
-    group: "Data Analysis",
-    slug: "data-analysis",
-    icon: "chart",
-    description: "Tutti i parametri raccolti sull'atleta: carico, cuore, GPS e test",
-    children: [
-      { slug: "carico", label: "Carico", icon: "load", description: "Carico interno: sRPE e RPE degli allenamenti, carico settimanale" },
-      { slug: "cardiofrequenzimetro", label: "Cardiofrequenzimetro", icon: "pulse", description: "Frequenza cardiaca, TRIMP e tempo nelle zone HR" },
-      { slug: "gps", label: "GPS", icon: "live", description: "Carico esterno: distanza, alta velocità, sprint, PlayerLoad" },
     ],
   },
   { slug: "rd", label: "R&D", icon: "sparkle", description: "Data Intelligence: correlazioni e reportistica" },
