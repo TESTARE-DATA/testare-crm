@@ -66,10 +66,7 @@ function Phone({ st, clientName, clientLogo }: { st: ReadinessState; clientName:
     <div className="relative w-[380px] max-w-full shrink-0 rounded-[2.4rem] border border-border bg-[#0b1220] p-2.5 shadow-xl">
       <div className="relative flex h-[720px] flex-col overflow-hidden rounded-[2rem] bg-background">
         <div className="pointer-events-none absolute left-1/2 top-0 z-20 h-6 w-32 -translate-x-1/2 rounded-b-2xl bg-[#0b1220]" />
-        {/* Favicon TESTÀRE — brand dell'app atleta, in alto a destra (come il logo squadra) */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logos/testare-favicon.png" alt="TESTÀRE" className="pointer-events-none absolute right-3.5 top-3 z-20 h-8 w-8 object-contain" />
-        <div className="flex-1 overflow-y-auto pt-12">
+        <div className="flex-1 overflow-y-auto pt-8">
           {screen === "oggi" && <ScreenOggi st={st} checkinDone={checkinDone} loadDone={loadDone} clientName={clientName} clientLogo={clientLogo} onCheckin={() => setScreen("checkin")} onLoad={() => setScreen("carico")} />}
           {screen === "checkin" && <ScreenCheckin st={st} onDone={() => setCheckinDone(true)} />}
           {screen === "carico" && <ScreenCarico st={st} loadDone={loadDone} onDone={() => setLoadDone(true)} />}
@@ -107,6 +104,12 @@ function StatusCard({ icon, title, done, doneLabel, todoLabel, onClick }: { icon
   );
 }
 
+function Brand() {
+  // Favicon TESTÀRE — ritagliato ai margini, così a parità di box combacia col logo squadra.
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/logos/testare-favicon.png" alt="TESTÀRE" className="h-8 w-8 shrink-0 object-contain" />;
+}
+
 function ScreenOggi({ st, checkinDone, loadDone, clientName, clientLogo, onCheckin, onLoad }: { st: ReadinessState; checkinDone: boolean; loadDone: boolean; clientName: string; clientLogo: string; onCheckin: () => void; onLoad: () => void }) {
   const fm = FLAG_META[st.flag];
   const provisional = st.baselineStatus === "provisional";
@@ -118,9 +121,9 @@ function ScreenOggi({ st, checkinDone, loadDone, clientName, clientLogo, onCheck
         <img src={clientLogo} alt={clientName} className="h-8 w-8 object-contain" />
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-bold leading-tight">Ciao {st.athlete.firstName}</div>
-          <div className="text-[11px] capitalize text-muted-2">{fmtLong(st.date)}</div>
+          <div className="text-[11px] capitalize text-muted-2">{fmtLong(st.date)} · Privato</div>
         </div>
-        <span className="rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-2">Privato</span>
+        <Brand />
       </div>
 
       <div className="relative overflow-hidden rounded-2xl p-5 text-center" style={{ backgroundColor: provisional ? "var(--background)" : fm.bg }}>
@@ -176,9 +179,12 @@ function ScreenCheckin({ st, onDone }: { st: ReadinessState; onDone: () => void 
 
   return (
     <div className="space-y-4 px-4 pb-6">
-      <div>
-        <h2 className="text-[16px] font-bold">Check-in mattutino</h2>
-        <p className="mt-0.5 text-[11.5px] text-muted-2">Compila al risveglio, prima di ogni attività. È privato. Finestra {RE_CONFIG.morning_window_start}–{RE_CONFIG.morning_window_end}.</p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-[16px] font-bold">Check-in mattutino</h2>
+          <p className="mt-0.5 text-[11.5px] text-muted-2">Compila al risveglio, prima di ogni attività. È privato. Finestra {RE_CONFIG.morning_window_start}–{RE_CONFIG.morning_window_end}.</p>
+        </div>
+        <Brand />
       </div>
 
       {RE_QUESTIONNAIRE.map((q) => (
@@ -265,7 +271,10 @@ function ScreenCarico({ st, loadDone, onDone }: { st: ReadinessState; loadDone: 
 
   return (
     <div className="space-y-4 px-4 pb-6">
-      <h2 className="text-[16px] font-bold">Il tuo carico</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-[16px] font-bold">Il tuo carico</h2>
+        <Brand />
+      </div>
 
       {/* Registrazione seduta di oggi */}
       <div className="rounded-xl border border-border p-3.5">
