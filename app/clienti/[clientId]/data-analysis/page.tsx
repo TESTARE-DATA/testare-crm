@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getClient } from "@/lib/clients";
 import { getAthletes } from "@/lib/data";
 import { getMergedGps } from "@/lib/server-gps";
+import { getMatchAnalysis } from "@/lib/matchAnalysis";
 import { sectionHref } from "@/lib/nav";
 import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/ui";
@@ -19,6 +20,7 @@ export default async function DataAnalysisPage({ params }: { params: Promise<{ c
   const todays = lastDate ? gps.filter((g) => g.date === lastDate) : [];
   const lastKm = Math.round(todays.reduce((s, g) => s + g.totalDistanceM, 0) / 1000);
   const lastTrimp = todays.reduce((s, g) => s + g.trimp, 0);
+  const ma = getMatchAnalysis(clientId).season;
 
   const cards = [
     {
@@ -42,11 +44,18 @@ export default async function DataAnalysisPage({ params }: { params: Promise<{ c
       desc: "Carico esterno: distanza, alta velocità, sprint, accel/decel e Player Load dai tracker. Leaderboard e medie per ruolo.",
       stat: `${lastKm} km ultima seduta`,
     },
+    {
+      slug: "match-analysis",
+      icon: "soccer",
+      title: "Match Analysis",
+      desc: "Statistiche di squadra dalle partite: possesso, passaggi, tiri, xG, duelli aerei e palle inattive, con confronto vs media lega.",
+      stat: `${ma.played} gare · ${ma.avg.possession}% possesso`,
+    },
   ];
 
   return (
     <div className="mx-auto max-w-7xl fade-up">
-      <PageHeader title="Data Analysis" subtitle="Tutti i parametri raccolti sull'atleta: carico, cuore, GPS e test" icon="chart" />
+      <PageHeader title="Data Analysis" subtitle="Tutti i dati raccolti: carico, cuore, GPS e match analysis di squadra" icon="chart" />
       <div className="grid gap-4 md:grid-cols-2">
         {cards.map((c) => (
           <Link key={c.slug} href={sectionHref(clientId, c.slug)} className="card card-hover sheen group flex flex-col p-5">
@@ -62,7 +71,7 @@ export default async function DataAnalysisPage({ params }: { params: Promise<{ c
       </div>
       <div className="brand-soft-bg mt-6 flex items-center gap-3 rounded-xl border border-dashed border-border p-4 text-sm text-foreground/70">
         <Icon name="sparkle" size={18} className="brand-text" />
-        I dati di carico, cuore, GPS e test alimentano la <Link href={sectionHref(clientId, "rd")} className="brand-text mx-1 font-semibold hover:underline">Data Intelligence (R&D)</Link> per costruire correlazioni e report su {athletes.length} atleti.
+        I dati di carico, cuore, GPS e match analysis alimentano la <Link href={sectionHref(clientId, "rd")} className="brand-text mx-1 font-semibold hover:underline">Data Intelligence (R&D)</Link> per costruire correlazioni e report su {athletes.length} atleti.
       </div>
     </div>
   );

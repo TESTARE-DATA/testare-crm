@@ -72,7 +72,6 @@ export const NAV: NavItem[] = [
       { slug: "area-tecnica/template", label: "Template", icon: "layers", description: "Sedute di campo" },
     ],
   },
-  { slug: "match-analysis", label: "Match Analysis", icon: "soccer", description: "Statistiche di squadra dalle partite: possesso, passaggi, tiri, xG, duelli aerei e palle inattive" },
   {
     group: "Area Performance",
     slug: "preparazione-atletica",
@@ -106,6 +105,7 @@ export const NAV: NavItem[] = [
       { slug: "carico", label: "Carico", icon: "load", description: "Carico interno: sRPE e RPE degli allenamenti, carico settimanale" },
       { slug: "cardiofrequenzimetro", label: "Cardiofrequenzimetro", icon: "pulse", description: "Frequenza cardiaca, TRIMP e tempo nelle zone HR" },
       { slug: "gps", label: "GPS", icon: "live", description: "Carico esterno: distanza, alta velocità, sprint, PlayerLoad" },
+      { slug: "match-analysis", label: "Match Analysis", icon: "soccer", description: "Statistiche di squadra dalle partite: possesso, passaggi, tiri, xG, duelli aerei e palle inattive" },
     ],
   },
   { slug: "rd", label: "R&D", icon: "sparkle", description: "Data Intelligence: correlazioni e reportistica" },
