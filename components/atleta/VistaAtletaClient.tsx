@@ -66,6 +66,9 @@ function Phone({ st, clientName, clientLogo }: { st: ReadinessState; clientName:
     <div className="relative w-[380px] max-w-full shrink-0 rounded-[2.4rem] border border-border bg-[#0b1220] p-2.5 shadow-xl">
       <div className="relative flex h-[720px] flex-col overflow-hidden rounded-[2rem] bg-background">
         <div className="pointer-events-none absolute left-1/2 top-0 z-20 h-6 w-32 -translate-x-1/2 rounded-b-2xl bg-[#0b1220]" />
+        {/* Favicon TESTÀRE — brand dell'app atleta, in alto a destra */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logos/testare-favicon.png" alt="TESTÀRE" className="pointer-events-none absolute right-3.5 top-2 z-20 h-[18px] w-[18px] object-contain" />
         <div className="flex-1 overflow-y-auto pt-8">
           {screen === "oggi" && <ScreenOggi st={st} checkinDone={checkinDone} loadDone={loadDone} clientName={clientName} clientLogo={clientLogo} onCheckin={() => setScreen("checkin")} onLoad={() => setScreen("carico")} />}
           {screen === "checkin" && <ScreenCheckin st={st} onDone={() => setCheckinDone(true)} />}
