@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { SCORE_AMBER, SCORE_RED, FLAG_META, type Flag } from "@/lib/readinessEngine-core";
+import { SCORE_AMBER, SCORE_RED, FLAG_META, flagFromScore, type Flag } from "@/lib/readinessEngine-core";
 
 export interface RPoint { date: string; score: number | null; flag: Flag }
 
@@ -24,7 +24,8 @@ export function ReadinessChart({ points, height = 210 }: { points: RPoint[]; hei
 
   // Segmenti della linea sui soli punti compilati (salta i buchi).
   const filled = points.map((p, i) => ({ i, p })).filter((o) => o.p.score != null) as { i: number; p: { date: string; score: number; flag: Flag } }[];
-  const segPts = filled.map((o) => ({ x: x(o.i), y: y(o.p.score), flag: o.p.flag, date: o.p.date, score: o.p.score }));
+  // Colore coerente col valore mostrato: dallo score, non dal flag composito.
+  const segPts = filled.map((o) => ({ x: x(o.i), y: y(o.p.score), flag: flagFromScore(o.p.score), date: o.p.date, score: o.p.score }));
   const line = smooth(segPts.map((s) => ({ x: s.x, y: s.y })));
   const area = segPts.length >= 2 ? `${line} L ${segPts[segPts.length - 1].x},${PAD_T + ih} L ${segPts[0].x},${PAD_T + ih} Z` : "";
 
@@ -76,7 +77,7 @@ export function ReadinessChart({ points, height = 210 }: { points: RPoint[]; hei
             <line x1={cx} y1={PAD_T} x2={cx} y2={PAD_T + ih} stroke="var(--border)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
             <rect x={bx} y={by} width={boxW} height={boxH} rx={7} fill="var(--surface)" stroke="var(--border)" />
             <text x={bx + 9} y={by + 14} fontSize="10" className="fill-muted-2">{fmtDay(p.date)}</text>
-            <text x={bx + 9} y={by + 27} fontSize="13" fontWeight="800" fill={FLAG_META[p.flag].color}>{p.score}<tspan className="fill-muted-2" fontSize="9" fontWeight="600"> / 100</tspan></text>
+            <text x={bx + 9} y={by + 27} fontSize="13" fontWeight="800" fill={FLAG_META[flagFromScore(p.score)].color}>{p.score}<tspan className="fill-muted-2" fontSize="9" fontWeight="600"> / 100</tspan></text>
           </g>
         );
       })()}

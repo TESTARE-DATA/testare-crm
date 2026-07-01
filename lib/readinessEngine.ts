@@ -1,7 +1,7 @@
 import { getAthletes } from "./data";
 import type { Athlete } from "./types";
 import {
-  RE_CONFIG, DOMS_AREAS, type ReItem,
+  RE_CONFIG, DOMS_AREAS, flagFromScore, type ReItem,
   type WellnessEntry, type LoadSession, type Flag, type Severity,
   type LoadDaily, type DayPoint, type ReadinessState,
 } from "./readinessEngine-core";
@@ -275,11 +275,13 @@ export function getReadinessTeam(clientId: string): import("./readinessEngine-co
   const valid = days.map((d) => d.avg).filter((v): v is number => v != null);
   const avg14 = valid.length ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : null;
 
+  // Conteggio flag COERENTE col punteggio mostrato (flagFromScore), non col flag
+  // composito (che includerebbe l'override "item critico" → numero e colore divergerebbero).
   const flagCounts = { green: 0, amber: 0, red: 0 };
   let notCompiled = 0;
   for (const s of states) {
     if (!s.compiledToday) notCompiled++;
-    else flagCounts[s.flag]++;
+    else if (s.readinessScore != null) flagCounts[flagFromScore(s.readinessScore)]++;
   }
   return { days, todayAvg, delta, avg14, flagCounts, notCompiled, total: states.length };
 }

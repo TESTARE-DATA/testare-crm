@@ -29,15 +29,18 @@ export function ReadinessClient({ clientId, states, team }: { clientId: string; 
   // Ordine: prima chi richiede attenzione (rosso→ambra), poi non compilati, infine verdi.
   const rows = useMemo(() => {
     const rank = (s: ReadinessState) => {
-      if (isCompiled(s)) return s.flag === "red" ? 0 : s.flag === "amber" ? 1 : 3;
-      return 2; // non compilato
+      if (!isCompiled(s)) return 2; // non compilato
+      const f = s.readinessScore != null ? flagFromScore(s.readinessScore) : "green";
+      return f === "red" ? 0 : f === "amber" ? 1 : 3;
     };
     return [...states].sort((a, b) => rank(a) - rank(b) || (a.readinessScore ?? a.lastScore ?? 999) - (b.readinessScore ?? b.lastScore ?? 999));
   }, [states, markedToday]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const teamFlag = team.todayAvg != null ? flagFromScore(team.todayAvg) : "green";
   const teamPts: RPoint[] = team.days.map((d) => ({ date: d.date, score: d.avg, flag: d.avg != null ? flagFromScore(d.avg) : "green" }));
-  const watch = states.filter((s) => isCompiled(s) && s.flag !== "green").sort((a, b) => (a.readinessScore ?? 0) - (b.readinessScore ?? 0));
+  // "Da monitorare" coerente col punteggio mostrato (o item critico / red flag clinico).
+  const watch = states.filter((s) => isCompiled(s) && s.readinessScore != null && (flagFromScore(s.readinessScore) !== "green" || s.itemAlert || s.clinicalFlag))
+    .sort((a, b) => (a.readinessScore ?? 0) - (b.readinessScore ?? 0));
   const notCompiled = states.filter((s) => !isCompiled(s));
 
   function saveEdit(athleteId: string) {
@@ -86,7 +89,8 @@ export function ReadinessClient({ clientId, states, team }: { clientId: string; 
                   <Avatar firstName={s.athlete.firstName} lastName={s.athlete.lastName} photoUrl={photos[s.athlete.id]} size={28} />
                   <span className="flex-1 truncate text-[13px] font-medium">{s.athlete.lastName}</span>
                   {s.clinicalFlag && <Icon name="medical" size={13} className="text-red-600" />}
-                  <span className="text-sm font-bold" style={{ color: FLAG_META[s.flag].color }}>{s.readinessScore}</span>
+                  {s.itemAlert && <Icon name="warning" size={12} className="text-amber-600" />}
+                  <span className="text-sm font-bold" style={{ color: FLAG_META[flagFromScore(s.readinessScore ?? 0)].color }}>{s.readinessScore}</span>
                 </li>
               ))}
               {notCompiled.map((s) => (
@@ -111,7 +115,9 @@ export function ReadinessClient({ clientId, states, team }: { clientId: string; 
           {rows.map((s) => {
             const a = s.athlete;
             const compiled = isCompiled(s);
-            const fm = FLAG_META[s.flag];
+            const dispScore = s.readinessScore ?? s.lastScore;
+            const dispFlag = dispScore != null ? flagFromScore(dispScore) : "green";
+            const fm = FLAG_META[dispFlag];
             const isOpen = expanded === a.id;
             const scores = s.history.filter((h) => h.score != null).map((h) => h.score as number);
             return (
@@ -123,6 +129,7 @@ export function ReadinessClient({ clientId, states, team }: { clientId: string; 
                     <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
                       <span>{a.role}</span>
                       {compiled && s.clinicalFlag && <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-red-700"><Icon name="medical" size={11} /> {s.clinicalFlag[0]}</span>}
+                      {compiled && s.itemAlert && !s.clinicalFlag && <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-700"><Icon name="warning" size={11} /> item critico</span>}
                       {compiled && s.baselineStatus === "provisional" && <span className="rounded-md bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-2">baseline in costruzione</span>}
                     </div>
                   </div>
@@ -131,8 +138,8 @@ export function ReadinessClient({ clientId, states, team }: { clientId: string; 
                   {compiled ? (
                     <>
                       <div className="w-16 shrink-0 text-right">
-                        <div className="text-lg font-extrabold leading-none" style={{ color: fm.color }}>{s.readinessScore ?? s.lastScore ?? "—"}</div>
-                        <div className="text-[10px] uppercase tracking-wide text-muted-2">{levelOf(s.flag)}</div>
+                        <div className="text-lg font-extrabold leading-none" style={{ color: fm.color }}>{dispScore ?? "—"}</div>
+                        <div className="text-[10px] uppercase tracking-wide text-muted-2">{dispScore != null ? levelOf(dispFlag) : ""}</div>
                       </div>
                       <div className="w-14 shrink-0 text-right">{s.deltaVsPrev != null ? <DeltaChip d={s.deltaVsPrev} sm /> : <span className="text-[11px] text-muted-2">—</span>}</div>
                     </>
