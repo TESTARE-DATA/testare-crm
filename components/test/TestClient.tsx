@@ -7,6 +7,7 @@ import { sectionHref } from "@/lib/nav";
 import { SWC, TIER_META, tierOf } from "@/lib/perf";
 import { BATTERY, BATTERY_DIM, DIM_META } from "@/lib/tests";
 import { useLocalCollection, newId } from "@/lib/store";
+import { putFile, getFile, deleteFile } from "@/lib/fileStore";
 import { extractDateFromDataUrl } from "@/lib/fileDate";
 import { parseTestReport, type ParsedReport } from "@/lib/testReport";
 import { Icon } from "@/components/Icon";
@@ -56,7 +57,9 @@ export function TestClient({ clientId, athletes, clientLogo, clientName }: { cli
 
 // ---- Archivio file report (HTML/PDF inviati da TESTÀRE) ---------------------
 const ANALYSIS_NAME = "Analisi della valutazione neuromuscolare";
-interface ReportFile { id: string; name: string; date: string; kind: "html" | "pdf"; url?: string; demo?: boolean }
+// url  → file pubblico (card demo) o legacy data-URL già in localStorage.
+// hasFile → il contenuto reale è salvato in IndexedDB con chiave = id (vedi fileStore).
+interface ReportFile { id: string; name: string; date: string; kind: "html" | "pdf"; url?: string; hasFile?: boolean; demo?: boolean }
 // Esempi VARIATI per mostrare l'illuminazione: completo (HTML+PDF), solo PDF, solo HTML.
 // I demo puntano a file reali in /public/reports così, cliccando, si apre davvero l'esempio.
 const DEMO_HTML = "/reports/esempio-valutazione.html";
@@ -80,17 +83,24 @@ function cleanName(filename: string): string {
 function Archivio({ clientId, athletes, clientLogo, clientName }: { clientId: string; athletes: Athlete[]; clientLogo: string; clientName: string }) {
   const { items, add, remove } = useLocalCollection<ReportFile>(`test-reports:${clientId}`);
   const all = [...items, ...SEED_REPORTS].sort((a, b) => b.date.localeCompare(a.date));
-  const [report, setReport] = useState<{ parsed: ParsedReport; fileName: string; dataUrl: string } | null>(null);
+  const [report, setReport] = useState<{ parsed: ParsedReport; fileName: string; html: string } | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
   // Archivia il file così com'è (PDF, o HTML non riconosciuto come report TESTÀRE).
+  // Il contenuto va in IndexedDB (regge file grandi e persiste); in localStorage
+  // solo i metadati. In caso di errore salvo comunque i metadati (tasto acceso ma
+  // non apribile, con tooltip) invece di far sparire tutto.
   const archiveFile = (f: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       const url = String(reader.result);
       const date = extractDateFromDataUrl(url) ?? new Date().toISOString().slice(0, 10);
-      try { add({ id: newId("rep"), name: cleanName(f.name), date, kind: /\.pdf$/i.test(f.name) ? "pdf" : "html", url }); }
-      catch { add({ id: newId("rep"), name: cleanName(f.name), date, kind: /\.pdf$/i.test(f.name) ? "pdf" : "html" }); }
+      const id = newId("rep");
+      const kind: "html" | "pdf" = /\.pdf$/i.test(f.name) ? "pdf" : "html";
+      const meta = { id, name: cleanName(f.name), date, kind };
+      putFile(id, f)
+        .then(() => add({ ...meta, hasFile: true }))
+        .catch(() => add(meta));
     };
     reader.readAsDataURL(f);
   };
@@ -105,10 +115,9 @@ function Archivio({ clientId, athletes, clientLogo, clientName }: { clientId: st
           const text = String(reader.result);
           const parsed = parseTestReport(text);
           if (parsed.ok && parsed.athletes.length) {
-            // Conservo il contenuto come data URL così il report resta apribile
-            // dall'archivio anche dopo l'import (non solo un record di metadati).
-            const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(text)}`;
-            setReport({ parsed, fileName: f.name, dataUrl });
+            // Conservo il contenuto HTML: alla conferma finisce in IndexedDB così
+            // il report resta apribile dall'archivio (non solo un record di metadati).
+            setReport({ parsed, fileName: f.name, html: text });
           } else archiveFile(f); // HTML non riconosciuto → archivia e basta
         };
         reader.readAsText(f);
@@ -121,7 +130,12 @@ function Archivio({ clientId, athletes, clientLogo, clientName }: { clientId: st
   // A conferma importazione: registra una voce nell'archivio (metadati; il file
   // completo non entra in localStorage per dimensione) e mostra l'esito.
   const onImported = (count: number) => {
-    if (report) add({ id: newId("rep"), name: ANALYSIS_NAME, date: report.parsed.reportDate ?? new Date().toISOString().slice(0, 10), kind: "html", url: report.dataUrl });
+    if (report) {
+      const id = newId("rep");
+      const meta = { id, name: ANALYSIS_NAME, date: report.parsed.reportDate ?? new Date().toISOString().slice(0, 10), kind: "html" as const };
+      const blob = new Blob([report.html], { type: "text/html;charset=utf-8" });
+      putFile(id, blob).then(() => add({ ...meta, hasFile: true })).catch(() => add(meta));
+    }
     setFlash(`Importati ${count} giocatori: valori salvati nello storico e nei radar.`);
     setReport(null);
     window.setTimeout(() => setFlash(null), 6000);
@@ -181,7 +195,7 @@ function Archivio({ clientId, athletes, clientLogo, clientName }: { clientId: st
               <div className="flex items-center gap-2">
                 <FileBtn kind="html" file={html} />
                 <FileBtn kind="pdf" file={pdf} />
-                {!r.demo && <button onClick={() => files.forEach((f) => remove(f.id))} className="ml-1 flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-2 transition-colors hover:border-red-200 hover:text-red-600" title="Elimina"><span className="text-[13px]">✕</span></button>}
+                {!r.demo && <button onClick={() => files.forEach((f) => { remove(f.id); if (f.hasFile) deleteFile(f.id).catch(() => {}); })} className="ml-1 flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-2 transition-colors hover:border-red-200 hover:text-red-600" title="Elimina"><span className="text-[13px]">✕</span></button>}
               </div>
             </div>
           );
@@ -192,22 +206,24 @@ function Archivio({ clientId, athletes, clientLogo, clientName }: { clientId: st
   );
 }
 
-/** Apre il file in una nuova scheda. I data URL non sono navigabili direttamente
- *  (i browser li bloccano come documento top-level) → li converto in blob URL. */
+/** Apre il file in una nuova scheda. Il blob (da IndexedDB o data-URL legacy) non è
+ *  navigabile direttamente → lo apro sempre come blob URL. */
 function openReport(file: ReportFile) {
-  if (!file.url) return;
-  if (file.url.startsWith("data:")) {
-    fetch(file.url)
-      .then((r) => r.blob())
-      .then((b) => {
-        const u = URL.createObjectURL(b);
-        window.open(u, "_blank", "noopener");
-        window.setTimeout(() => URL.revokeObjectURL(u), 60_000);
-      })
-      .catch(() => {});
+  const openBlob = (b: Blob) => {
+    const u = URL.createObjectURL(b);
+    window.open(u, "_blank", "noopener");
+    window.setTimeout(() => URL.revokeObjectURL(u), 60_000);
+  };
+  if (file.hasFile) {
+    getFile(file.id).then((b) => { if (b) openBlob(b); }).catch(() => {});
     return;
   }
-  window.open(file.url, "_blank", "noopener");
+  if (!file.url) return;
+  if (file.url.startsWith("data:")) {
+    fetch(file.url).then((r) => r.blob()).then(openBlob).catch(() => {});
+    return;
+  }
+  window.open(file.url, "_blank", "noopener"); // file pubblico (demo)
 }
 
 function FileBtn({ kind, file }: { kind: "html" | "pdf"; file?: ReportFile }) {
@@ -221,11 +237,11 @@ function FileBtn({ kind, file }: { kind: "html" | "pdf"; file?: ReportFile }) {
       </span>
     );
   }
-  // File presente ma senza contenuto salvabile (es. quota localStorage superata):
+  // File presente ma senza contenuto apribile (salvataggio non riuscito):
   // illuminato ma non apribile.
-  if (!file.url) {
+  if (!file.hasFile && !file.url) {
     return (
-      <span className="brand-soft-bg brand-text flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold" title="File troppo grande per essere salvato localmente — ricaricalo per aprirlo">
+      <span className="brand-soft-bg brand-text flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold" title="File non salvato — ricaricalo per aprirlo">
         <Icon name={icon} size={14} /> {label}
       </span>
     );
