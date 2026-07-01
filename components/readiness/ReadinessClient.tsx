@@ -162,13 +162,15 @@ export function ReadinessClient({ clientId, states, team }: { clientId: string; 
                 </div>
                 {isOpen && (
                   <div className="border-t border-border bg-background/40 px-5 py-4">
-                    <div className="mb-2 flex flex-wrap items-center gap-3 text-[12px] text-muted">
-                      <span className="font-semibold text-foreground/80">Andamento readiness · 14 giorni</span>
-                      {s.readinessScore != null && <span>oggi <b style={{ color: fm.color }}>{s.readinessScore}</b></span>}
-                      {s.deltaVsPrev != null && <span className="inline-flex items-center gap-1">vs ieri <DeltaChip d={s.deltaVsPrev} sm /></span>}
-                      <span>load settimana <b>{s.load.weekly.toLocaleString("it-IT")}</b> A.U.{s.load.spike && <span className="ml-1 text-warn">· picco</span>}</span>
+                    <div className="mx-auto max-w-[640px]">
+                      <div className="mb-2 flex flex-wrap items-center gap-3 text-[12px] text-muted">
+                        <span className="font-semibold text-foreground/80">Andamento readiness · 14 giorni</span>
+                        {s.readinessScore != null && <span>oggi <b style={{ color: fm.color }}>{s.readinessScore}</b></span>}
+                        {s.deltaVsPrev != null && <span className="inline-flex items-center gap-1">vs ieri <DeltaChip d={s.deltaVsPrev} sm /></span>}
+                        <span>load settimana <b>{s.load.weekly.toLocaleString("it-IT")}</b> A.U.{s.load.spike && <span className="ml-1 text-warn">· picco</span>}</span>
+                      </div>
+                      <ReadinessChart points={s.history.map((h) => ({ date: h.date, score: h.score, flag: h.flag }))} height={190} />
                     </div>
-                    <ReadinessChart points={s.history.map((h) => ({ date: h.date, score: h.score, flag: h.flag }))} height={200} />
                   </div>
                 )}
               </li>
