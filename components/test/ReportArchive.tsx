@@ -17,12 +17,39 @@ import { Icon } from "@/components/Icon";
 export interface ReportFile { id: string; name: string; date: string; kind: "html" | "pdf"; url?: string; hasFile?: boolean; demo?: boolean }
 
 /** Apre il file in una nuova scheda. Il blob (da IndexedDB o data-URL legacy) non è
- *  navigabile direttamente → lo apro sempre come blob URL. */
+ *  navigabile direttamente → lo apro sempre come blob URL.
+ *
+ *  SICUREZZA: i report HTML sono file caricati dall'utente (contenuto non fidato:
+ *  potrebbero contenere <script> malevoli). NON vanno aperti nella nostra origin,
+ *  altrimenti uno script potrebbe leggere localStorage/IndexedDB/cookie e chiamare
+ *  le server action. Li isolo quindi in un <iframe sandbox> SENZA allow-same-origin:
+ *  l'iframe gira con un'origin opaca, gli script del report (es. Chart.js) continuano
+ *  a funzionare ma non possono toccare i dati della piattaforma. I PDF, resi dal
+ *  viewer già isolato del browser, si aprono direttamente. */
 export function openReport(file: ReportFile) {
+  const openHtmlSandboxed = (src: string, revoke?: () => void) => {
+    const w = window.open("", "_blank");
+    if (!w) { revoke?.(); return; }
+    const doc = w.document;
+    doc.title = file.name || "Report";
+    const style = doc.createElement("style");
+    style.textContent = "html,body{margin:0;height:100%}iframe{border:0;width:100%;height:100vh;display:block}";
+    doc.head.appendChild(style);
+    const frame = doc.createElement("iframe");
+    // allow-scripts serve a Chart.js; NON aggiungere allow-same-origin (romperebbe l'isolamento).
+    frame.setAttribute("sandbox", "allow-scripts allow-popups allow-modals allow-forms");
+    frame.src = src;
+    doc.body.appendChild(frame);
+    if (revoke) w.setTimeout(revoke, 60_000);
+  };
   const openBlob = (b: Blob) => {
     const u = URL.createObjectURL(b);
-    window.open(u, "_blank", "noopener");
-    window.setTimeout(() => URL.revokeObjectURL(u), 60_000);
+    if (file.kind === "pdf") {
+      window.open(u, "_blank", "noopener");
+      window.setTimeout(() => URL.revokeObjectURL(u), 60_000);
+    } else {
+      openHtmlSandboxed(u, () => URL.revokeObjectURL(u));
+    }
   };
   if (file.hasFile) {
     getFile(file.id).then((b) => { if (b) openBlob(b); }).catch(() => {});
@@ -33,7 +60,9 @@ export function openReport(file: ReportFile) {
     fetch(file.url).then((r) => r.blob()).then(openBlob).catch(() => {});
     return;
   }
-  window.open(file.url, "_blank", "noopener"); // file pubblico (demo)
+  // file pubblico (demo): i PDF direttamente, gli HTML comunque isolati.
+  if (file.kind === "pdf") window.open(file.url, "_blank", "noopener");
+  else openHtmlSandboxed(file.url);
 }
 
 export function FileBtn({ kind, file }: { kind: "html" | "pdf"; file?: ReportFile }) {

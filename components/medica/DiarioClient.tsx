@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { Athlete, DiaryEntryKind, InjuryPhase, MedicalClosure, MedicalIntake, MedicalRecord, PhysioDiaryEntry, PromEntry, RehabItem, RtpAssessment, RtpGate, StaffMember } from "@/lib/types";
 import { statusForPhase, effectivePhase, type MedicalPhaseOverride } from "@/lib/medical-flow";
 import { newId } from "@/lib/store";
+import { escapeHtml } from "@/lib/escapeHtml";
 import { useDbCollection } from "@/lib/useDbCollection";
 import { useRoster } from "@/lib/useRoster";
 import { useAthleteEdits } from "@/lib/useAthleteEdits";
@@ -259,15 +260,15 @@ function exportPdf(a: Athlete, m: MedicalRecord, intake: MedicalIntake | undefin
     if (end == null && pre == null) return "—";
     return pre != null && post != null ? `${pre}→${post}` : `${end}`;
   };
-  const rows = entries.map((e) => `<tr><td>${fmtShort(e.date)}</td><td>${e.kind === "visita" ? '<b style="color:#7c3aed">Visita</b>' : "Seduta"}</td><td>${e.treatment}</td><td>${e.area}</td><td style="text-align:center">${cell(e.painPre, e.painPost, e.pain)}</td><td style="text-align:center">${cell(e.funcPre, e.funcPost)}</td><td style="text-align:right">${e.durationMin}′</td><td>${e.author ?? ""}</td></tr>`).join("");
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Diario ${a.lastName}</title>
+  const rows = entries.map((e) => `<tr><td>${escapeHtml(fmtShort(e.date))}</td><td>${e.kind === "visita" ? '<b style="color:#7c3aed">Visita</b>' : "Seduta"}</td><td>${escapeHtml(e.treatment)}</td><td>${escapeHtml(e.area)}</td><td style="text-align:center">${escapeHtml(cell(e.painPre, e.painPost, e.pain))}</td><td style="text-align:center">${escapeHtml(cell(e.funcPre, e.funcPost))}</td><td style="text-align:right">${escapeHtml(e.durationMin)}′</td><td>${escapeHtml(e.author ?? "")}</td></tr>`).join("");
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Diario ${escapeHtml(a.lastName)}</title>
   <style>body{font-family:-apple-system,Segoe UI,sans-serif;color:#0f172a;padding:32px;max-width:800px;margin:auto}
   h1{font-size:20px;margin:0} .sub{color:#64748b;font-size:13px;margin:2px 0 16px}
   .meta{display:flex;gap:24px;font-size:13px;margin-bottom:16px} .meta b{display:block;color:#64748b;font-size:11px;text-transform:uppercase}
   table{width:100%;border-collapse:collapse;font-size:13px} th,td{border-bottom:1px solid #e2e8f0;padding:8px;text-align:left}
   th{font-size:11px;text-transform:uppercase;color:#64748b} .head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:10px;margin-bottom:14px}</style></head>
-  <body><div class="head"><div><h1>Diario riabilitativo</h1><div class="sub">${a.firstName} ${a.lastName} · ${a.role} #${a.shirtNumber}</div></div><div style="font-weight:800;letter-spacing:2px">TESTÀRE</div></div>
-  <div class="meta"><div><b>Diagnosi</b>${m.injury} · ${m.bodyPart}</div><div><b>Affidato a</b>${intake?.assignedTo ?? "—"}</div><div><b>Sedute</b>${entries.length}</div></div>
+  <body><div class="head"><div><h1>Diario riabilitativo</h1><div class="sub">${escapeHtml(a.firstName)} ${escapeHtml(a.lastName)} · ${escapeHtml(a.role)} #${escapeHtml(a.shirtNumber)}</div></div><div style="font-weight:800;letter-spacing:2px">TESTÀRE</div></div>
+  <div class="meta"><div><b>Diagnosi</b>${escapeHtml(m.injury)} · ${escapeHtml(m.bodyPart)}</div><div><b>Affidato a</b>${escapeHtml(intake?.assignedTo ?? "—")}</div><div><b>Sedute</b>${entries.length}</div></div>
   <table><thead><tr><th>Data</th><th>Tipo</th><th>Trattamento</th><th>Area</th><th>Dolore</th><th>Funzione</th><th>Durata</th><th>Operatore</th></tr></thead><tbody>${rows || '<tr><td colspan="8">Nessuna seduta</td></tr>'}</tbody></table>
   </body></html>`;
   const w = window.open("", "_blank");

@@ -33,6 +33,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# claude code — impostazioni locali e worktree (possono contenere token/segreti)
+.claude/settings.local.json
+.claude/worktrees/
+
 # vercel
 .vercel
 

@@ -6,33 +6,59 @@ import { usePathname } from "next/navigation";
 import { CLIENTS } from "@/lib/clients";
 import { NAV, isGroup, isHeader, isSubLabel, sectionHref, type NavChild, type NavLeaf } from "@/lib/nav";
 import { isLeagueSupported } from "@/lib/leagues";
+import { signOut } from "@/app/auth/actions";
+import { ROLE_LABEL, type Profile } from "@/lib/auth/roles";
 import { BrandScope } from "./BrandScope";
 import { Icon } from "./Icon";
 
-export function Sidebar() {
+export function Sidebar({ profile }: { profile: Profile | null }) {
   const pathname = usePathname();
+  // Sulla pagina di login (e rotte auth) niente sidebar: è a tutta pagina.
+  if (pathname === "/login" || pathname.startsWith("/auth")) return null;
+  // L'atleta ha solo la sua Vista Atleta (mobile-first): nessun menu piattaforma.
+  if (profile?.role === "athlete") return null;
   const match = pathname.match(/^\/clienti\/([^/]+)/);
   const activeClient = match ? CLIENTS.find((c) => c.id === match[1]) : undefined;
+  const isStaff = profile?.role === "staff";
 
   return (
     <aside className="flex h-screen w-[270px] shrink-0 flex-col border-r border-border bg-surface/60">
-      <Link href="/" className="block px-5 pb-4 pt-5">
+      <Link href={isStaff && profile?.clientId ? `/clienti/${profile.clientId}` : "/"} className="block px-5 pb-4 pt-5">
         <Image src="/logos/testare-logo.png" alt="TESTÀRE" width={150} height={38} className="h-9 w-auto" priority />
         <div className="mt-1.5 pl-0.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-muted-2">Performance CRM</div>
       </Link>
 
       <nav className="flex-1 overflow-y-auto px-3 pb-4">
-        {activeClient ? <ClientNav clientId={activeClient.id} pathname={pathname} /> : <PlatformNav pathname={pathname} />}
+        {activeClient ? (
+          <ClientNav clientId={activeClient.id} pathname={pathname} showAllClients={!isStaff} />
+        ) : (
+          <PlatformNav pathname={pathname} isSuperadmin={profile?.role === "superadmin"} />
+        )}
       </nav>
 
-      <div className="flex items-center gap-2 border-t border-border px-5 py-3 text-[11px] text-muted-2">
-        <span className="h-1.5 w-1.5 rounded-full bg-good" /> Partner informatico · TESTÀRE
-      </div>
+      {profile && (
+        <div className="border-t border-border px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground text-[12px] font-bold text-background">
+              {(profile.fullName ?? profile.email ?? "?").slice(0, 1).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="truncate text-[12.5px] font-semibold">{profile.fullName ?? profile.email}</div>
+              <div className="truncate text-[10.5px] text-muted-2">{ROLE_LABEL[profile.role]}</div>
+            </div>
+            <form action={signOut}>
+              <button type="submit" title="Esci" className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-2 transition-colors hover:border-red-200 hover:text-red-600">
+                <Icon name="arrowLeft" size={14} />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
 
-function PlatformNav({ pathname }: { pathname: string }) {
+function PlatformNav({ pathname, isSuperadmin }: { pathname: string; isSuperadmin: boolean }) {
   return (
     <>
       <NavLink href="/" icon="dashboard" label="Dashboard" active={pathname === "/"} />
@@ -46,17 +72,25 @@ function PlatformNav({ pathname }: { pathname: string }) {
           <Icon name="chevron" size={15} className="text-muted-2 opacity-0 transition-opacity group-hover:opacity-100" />
         </Link>
       ))}
+      {isSuperadmin && (
+        <>
+          <SectionLabel>Amministrazione</SectionLabel>
+          <NavLink href="/admin" icon="users" label="Utenti e accessi" active={pathname.startsWith("/admin")} />
+        </>
+      )}
     </>
   );
 }
 
-function ClientNav({ clientId, pathname }: { clientId: string; pathname: string }) {
+function ClientNav({ clientId, pathname, showAllClients }: { clientId: string; pathname: string; showAllClients: boolean }) {
   const client = CLIENTS.find((c) => c.id === clientId)!;
   return (
     <>
-      <Link href="/" className="mb-2 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted transition-colors hover:text-foreground">
-        <Icon name="arrowLeft" size={14} /> Tutti i clienti
-      </Link>
+      {showAllClients && (
+        <Link href="/" className="mb-2 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted transition-colors hover:text-foreground">
+          <Icon name="arrowLeft" size={14} /> Tutti i clienti
+        </Link>
+      )}
 
       <div className="relative mb-3 overflow-hidden rounded-2xl px-3.5 py-3.5 shadow-sm" style={{ background: `linear-gradient(135deg, ${client.colors.primary}, ${client.colors.primaryDark})`, color: client.colors.onPrimary }}>
         <div className="relative z-10 flex items-center gap-3">

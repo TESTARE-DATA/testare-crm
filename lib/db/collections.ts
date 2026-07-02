@@ -15,6 +15,19 @@ import { getAdminClient } from "@/lib/supabase/admin";
 
 const TABLE = "collections";
 
+// Formato ammesso per le chiavi collezione: "<nome>" oppure "<nome>:<clientId>",
+// entrambi slug minuscoli (a-z, 0-9, trattino). Rifiutare qualsiasi altra forma
+// blocca chiavi arbitrarie/anomale prima che raggiungano il DB. NB: questo è solo
+// hardening sul FORMATO; il controllo di CHI può accedere a quale tenant arriverà
+// col login (sessione → client_id) insieme alle policy RLS.
+const KEY_RE = /^[a-z0-9-]+(:[a-z0-9-]+)?$/;
+
+function assertValidKey(key: string): void {
+  if (typeof key !== "string" || key.length > 96 || !KEY_RE.test(key)) {
+    throw new Error("Chiave collezione non valida");
+  }
+}
+
 function clientIdFromKey(key: string): string | null {
   const i = key.indexOf(":");
   return i === -1 ? null : key.slice(i + 1) || null;
@@ -22,6 +35,7 @@ function clientIdFromKey(key: string): string | null {
 
 /** Tutte le entità di una collezione, in ordine di inserimento. */
 export async function readCollection<T = unknown>(key: string): Promise<T[]> {
+  assertValidKey(key);
   const sb = getAdminClient();
   const { data, error } = await sb
     .from(TABLE)
@@ -34,6 +48,7 @@ export async function readCollection<T = unknown>(key: string): Promise<T[]> {
 
 /** Inserisce o aggiorna un'entità (per id) nella collezione. */
 export async function upsertItem<T extends { id: string }>(key: string, item: T): Promise<void> {
+  assertValidKey(key);
   const sb = getAdminClient();
   const { error } = await sb.from(TABLE).upsert(
     { coll: key, client_id: clientIdFromKey(key), id: item.id, data: item, updated_at: new Date().toISOString() },
@@ -44,6 +59,7 @@ export async function upsertItem<T extends { id: string }>(key: string, item: T)
 
 /** Rimuove un'entità per id. */
 export async function removeItem(key: string, id: string): Promise<void> {
+  assertValidKey(key);
   const sb = getAdminClient();
   const { error } = await sb.from(TABLE).delete().eq("coll", key).eq("id", id);
   if (error) throw error;
@@ -52,6 +68,7 @@ export async function removeItem(key: string, id: string): Promise<void> {
 /** Inserimento in blocco (usato dal seed). */
 export async function upsertMany<T extends { id: string }>(key: string, items: T[]): Promise<number> {
   if (items.length === 0) return 0;
+  assertValidKey(key);
   const sb = getAdminClient();
   const now = new Date().toISOString();
   const rows = items.map((item) => ({ coll: key, client_id: clientIdFromKey(key), id: item.id, data: item, updated_at: now }));

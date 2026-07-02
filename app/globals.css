@@ -331,3 +331,86 @@ input[type="range"] { accent-color: var(--brand-primary); }
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* ==========================================================================
+   Login — scena "stadio di notte": buio broadcast, linee campo che driftano,
+   riflettori animati, grana pellicola. Namespace .auth-* (solo /login).
+   ========================================================================== */
+.auth-scene {
+  --px: 0; --py: 0;
+  background:
+    radial-gradient(1200px 800px at 78% 18%, rgba(233, 79, 53, 0.07), transparent 60%),
+    radial-gradient(900px 700px at 12% 88%, rgba(56, 130, 246, 0.05), transparent 55%),
+    linear-gradient(180deg, #0b0d12 0%, #07080c 100%);
+}
+
+/* Linee del campo: drift lentissimo, quasi respiro */
+@keyframes authPitchDrift {
+  from { transform: rotate(-6deg) scale(1.28) translate3d(calc(var(--px) * -18px), calc(var(--py) * -12px), 0) translateY(0); }
+  to   { transform: rotate(-6deg) scale(1.28) translate3d(calc(var(--px) * -18px), calc(var(--py) * -12px), 0) translateY(-28px); }
+}
+.auth-pitch { animation: authPitchDrift 26s ease-in-out infinite alternate; will-change: transform; }
+
+/* Punto del centrocampo: pulsa come un "live" */
+@keyframes authSpot { 0%, 100% { opacity: 0.55; r: 5; } 50% { opacity: 1; r: 7; } }
+.auth-spot { animation: authSpot 2.8s ease-in-out infinite; }
+
+/* Fasci dei riflettori che attraversano la scena */
+@keyframes authSweep1 { from { transform: rotate(-24deg) translateX(-22%); } to { transform: rotate(-24deg) translateX(26%); } }
+@keyframes authSweep2 { from { transform: rotate(-24deg) translateX(30%); } to { transform: rotate(-24deg) translateX(-18%); } }
+.auth-sweep-a { animation: authSweep1 17s ease-in-out infinite alternate; }
+.auth-sweep-b { animation: authSweep2 23s ease-in-out infinite alternate; }
+
+/* Ingresso orchestrato: tutto sale con delay a scalare */
+@keyframes authIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+.auth-in { opacity: 0; animation: authIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.auth-d1 { animation-delay: 0.05s; } .auth-d2 { animation-delay: 0.14s; }
+.auth-d3 { animation-delay: 0.24s; } .auth-d4 { animation-delay: 0.36s; }
+.auth-d5 { animation-delay: 0.5s; }  .auth-d6 { animation-delay: 0.66s; }
+
+/* Campi del form: focus con alone brand */
+.auth-inp {
+  width: 100%; border-radius: 0.75rem; padding: 0.72rem 0.9rem 0.72rem 2.5rem;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff; font-size: 14.5px; outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.auth-inp::placeholder { color: rgba(255, 255, 255, 0.24); }
+.auth-inp:focus {
+  border-color: rgba(233, 79, 53, 0.65);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 0 0 3.5px rgba(233, 79, 53, 0.16), 0 0 24px rgba(233, 79, 53, 0.12);
+}
+
+/* Bottone: gradiente brand + sheen che scorre all'hover */
+.auth-btn {
+  position: relative; overflow: hidden; width: 100%; border-radius: 0.75rem;
+  padding: 0.8rem 1rem; font-weight: 700; font-size: 14px; letter-spacing: 0.02em; color: #fff;
+  background: linear-gradient(135deg, #ff6a4d 0%, #e94f35 55%, #d13f27 100%);
+  box-shadow: 0 8px 28px rgba(233, 79, 53, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.auth-btn:hover { filter: brightness(1.06); box-shadow: 0 10px 36px rgba(233, 79, 53, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+.auth-btn:active { transform: scale(0.985); }
+.auth-btn:disabled { opacity: 0.6; }
+.auth-btn::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+  transform: translateX(-120%);
+}
+.auth-btn:hover::after { transition: transform 0.7s ease; transform: translateX(120%); }
+
+/* Spinner nel bottone durante la verifica */
+@keyframes authSpin { to { transform: rotate(360deg); } }
+.auth-spin { animation: authSpin 0.8s linear infinite; }
+
+/* Grana pellicola sopra tutto */
+.auth-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay; opacity: 0.07;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-pitch, .auth-spot, .auth-sweep-a, .auth-sweep-b, .auth-spin { animation: none; }
+  .auth-in { animation-duration: 0.01s; }
+}

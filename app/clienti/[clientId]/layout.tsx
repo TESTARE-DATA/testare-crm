@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { requireClientAccess } from "@/lib/auth/session";
 import { getClient } from "@/lib/clients";
 import { getAthletes, getMedical } from "@/lib/data";
 import { TESTARE } from "@/lib/brand";
@@ -16,6 +17,8 @@ export default async function ClientLayout({
   params: Promise<{ clientId: string }>;
 }) {
   const { clientId } = await params;
+  // Controllo autorevole (DB): solo superadmin o membri di QUESTA società.
+  await requireClientAccess(clientId);
   const client = getClient(clientId);
   if (!client) notFound();
 

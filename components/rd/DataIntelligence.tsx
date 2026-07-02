@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { AthletePoint, Insight, MetricDef, MetricGroup } from "@/lib/intelligence";
 import type { StaffMember, PlayerRole } from "@/lib/types";
 import { useLocalCollection, newId } from "@/lib/store";
+import { escapeHtml } from "@/lib/escapeHtml";
 import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui";
 import { InjuryPrognosis } from "@/components/rd/InjuryPrognosis";
@@ -476,15 +477,15 @@ function ReportBuilder({
   }
 
   function printReport() {
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${report.title}</title>
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title>
       <style>body{font-family:-apple-system,Segoe UI,system-ui,sans-serif;color:#0f172a;max-width:720px;margin:40px auto;padding:0 24px;line-height:1.6}
       h1{font-size:22px;margin:0 0 4px}.meta{color:#64748b;font-size:13px;margin-bottom:24px}
       .tag{display:inline-block;background:#f1f5f9;border-radius:6px;padding:2px 8px;font-size:12px;margin:0 4px 4px 0}
       ul{padding-left:18px}li{margin:6px 0}.foot{margin-top:32px;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:12px}</style></head>
-      <body><h1>${report.title}</h1><div class="meta">${report.date} · ${report.scope} · TESTÀRE Data Intelligence</div>
-      <div><b>Destinatari:</b> ${allRecipients.map((r) => `<span class="tag">${r}</span>`).join("") || "—"}</div>
-      <ul>${report.lines.map((l) => `<li>${l}</li>`).join("")}</ul>
-      <div class="foot">Generato da TESTÀRE CRM · ${clientName}. Dati di monitoraggio — uso interno staff.</div>
+      <body><h1>${escapeHtml(report.title)}</h1><div class="meta">${escapeHtml(report.date)} · ${escapeHtml(report.scope)} · TESTÀRE Data Intelligence</div>
+      <div><b>Destinatari:</b> ${allRecipients.map((r) => `<span class="tag">${escapeHtml(r)}</span>`).join("") || "—"}</div>
+      <ul>${report.lines.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ul>
+      <div class="foot">Generato da TESTÀRE CRM · ${escapeHtml(clientName)}. Dati di monitoraggio — uso interno staff.</div>
       </body></html>`;
     const w = window.open("", "_blank", "width=800,height=900");
     if (w) { w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 250); }
